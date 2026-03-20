@@ -1,0 +1,9 @@
+name: histogram_exposure
+task_type: image_quality
+subtask: exposure_detection
+tier: 1
+source: local
+wrapper_class: "opencv_wrapper.HistogramExposureTool"
+default_config: {}
+cost_estimate_ms: 1
+requires_gpu: false

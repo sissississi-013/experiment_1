@@ -1,0 +1,9 @@
+name: pixel_stats
+task_type: image_quality
+subtask: garbage_detection
+tier: 1
+source: local
+wrapper_class: "opencv_wrapper.PixelStatsTool"
+default_config: {}
+cost_estimate_ms: 1
+requires_gpu: false

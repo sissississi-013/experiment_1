@@ -1,0 +1,18 @@
+Metadata-Version: 2.4
+Name: validation-pipeline
+Version: 0.1.0
+Requires-Python: >=3.11
+Requires-Dist: pydantic>=2.0
+Requires-Dist: instructor>=1.0
+Requires-Dist: openai>=1.0
+Requires-Dist: opencv-python>=4.8
+Requires-Dist: Pillow>=10.0
+Requires-Dist: numpy>=1.24
+Requires-Dist: scikit-learn>=1.3
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: gpu
+Requires-Dist: pyiqa>=0.1.10; extra == "gpu"
+Requires-Dist: torch>=2.0; extra == "gpu"
+Requires-Dist: transformers>=4.36; extra == "gpu"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"

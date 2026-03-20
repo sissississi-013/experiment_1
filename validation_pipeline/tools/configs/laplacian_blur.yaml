@@ -1,0 +1,9 @@
+name: laplacian_blur
+task_type: image_quality
+subtask: blur_detection
+tier: 1
+source: local
+wrapper_class: "opencv_wrapper.LaplacianBlurTool"
+default_config: {}
+cost_estimate_ms: 1
+requires_gpu: false
