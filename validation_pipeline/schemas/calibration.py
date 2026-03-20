@@ -12,7 +12,11 @@ class ToolCalibration(BaseModel):
     separability: float = 0.0
 
     def apply_platt(self, raw_score: float) -> float:
-        return 1.0 / (1.0 + math.exp(self.platt_a * raw_score + self.platt_b))
+        # Logistic regression P(good|x). If platt_a > 0 and higher raw = better,
+        # the sigmoid naturally inverts. We use the logistic regression's predict_proba
+        # equivalent directly: P(good) = 1/(1+exp(-(ax+b)))
+        logit = self.platt_a * raw_score + self.platt_b
+        return 1.0 / (1.0 + math.exp(-logit))
 
 
 class EmbeddingRecord(BaseModel):

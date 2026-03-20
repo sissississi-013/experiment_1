@@ -39,10 +39,25 @@ class ValidationPipeline:
             dim_to_tool,
         )
 
-        # Module 3: Planner
-        plan = generate_plan(spec, cal_result, self.registry.list_tools(), self.config)
+        # Module 3: Planner (only show tools that are actually available)
+        available_tool_configs = [
+            t for t in self.registry.list_tools()
+            if self.registry.configs.get(t["name"]) is not None
+        ]
+        plan = generate_plan(spec, cal_result, available_tool_configs, self.config)
         if auto_approve:
             plan.user_approved = True
+
+        # Filter plan steps to only use tools we can actually load
+        loadable = set()
+        for t in available_tool_configs:
+            try:
+                self.registry.get_tool(t["name"])
+                loadable.add(t["name"])
+            except Exception:
+                pass
+        plan.steps = [s for s in plan.steps if s.tool_name in loadable]
+
         if not plan.user_approved:
             raise ValueError("Plan must be approved by user before proceeding")
 
@@ -51,11 +66,14 @@ class ValidationPipeline:
 
         # Module 5: Executor
         tools = {}
+        unavailable = []
         for tool_name in program.tool_imports:
             try:
                 tools[tool_name] = self.registry.get_tool(tool_name)
             except KeyError:
-                pass
+                unavailable.append(tool_name)
+        if unavailable:
+            print(f"WARNING: Tools not available (skipping): {unavailable}")
 
         result = execute_program(program, user_input.dataset_path, tools, cal_result)
 

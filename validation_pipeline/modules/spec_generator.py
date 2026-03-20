@@ -14,8 +14,14 @@ You MUST:
 4. Set quantity targets if mentioned
 5. Define output format preferences
 
-If exemplar images are provided, mark relevant content criteria as exemplar_based=True.
-If the user mentions quality dimensions like "sharp", "well-lit", "clear", map them to quality criteria with appropriate dimensions (blur, exposure, resolution, etc.)."""
+IMPORTANT: For quality_criteria, the dimension field MUST be one of these exact values:
+- "blur" (for sharpness, blur, focus issues)
+- "exposure" (for brightness, darkness, lighting issues)
+- "information_content" (for solid colors, garbage frames, blank images)
+
+Do NOT create duplicate dimensions. "sharp" and "not blurry" both map to dimension="blur". "well-lit" and "not dark" both map to dimension="exposure". Use exactly one quality criterion per dimension.
+
+If exemplar images are provided, mark relevant content criteria as exemplar_based=True."""
 
 
 def _call_llm(user_input: UserInput, config: PipelineConfig | None = None) -> FormalSpec:

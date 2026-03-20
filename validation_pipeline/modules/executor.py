@@ -69,7 +69,18 @@ def _run_program_on_image(
     lines_executed = 0
     reasons = []
 
+    current_tier = 0
+    tier_failed = False
+
     for line in program.per_image_lines:
+        # Early exit: if a previous tier failed, skip higher tiers
+        if program.batch_strategy.early_exit and tier_failed and line.tier > current_tier:
+            break
+
+        if line.tier > current_tier:
+            current_tier = line.tier
+            tier_failed = False
+
         tool_name = line.tool_call.split("(")[0]
         if tool_name not in tools:
             continue
@@ -97,9 +108,8 @@ def _run_program_on_image(
 
         if not passed:
             all_passed = False
+            tier_failed = True
             reasons.append(f"{tr.dimension}: {raw_output:.2f} failed threshold {threshold}")
-            if program.batch_strategy.early_exit and line.tier == 1:
-                break
 
     if all_passed:
         verdict = "usable"
