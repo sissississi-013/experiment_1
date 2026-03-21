@@ -81,16 +81,10 @@ def test_store_image_results():
         ImageReport(image_id="img1", image_path="/img1.jpg", verdict="usable", scores={"blur": 0.9}, flags=[]),
         ImageReport(image_id="img2", image_path="/img2.jpg", verdict="unusable", scores={"blur": 0.2}, flags=["blur"]),
     ]
-    # Batch insert sends array of statements
-    batch_resp = MagicMock()
-    batch_resp.status_code = 200
-    batch_resp.json.return_value = [{"rowCount": 1}, {"rowCount": 1}]
-    batch_resp.raise_for_status = MagicMock()
-    with patch("requests.post", return_value=batch_resp) as mock_post:
+    with patch("requests.post", return_value=_mock_response()) as mock_post:
         store.store_image_results("abc123", results)
-    call_body = mock_post.call_args[1]["json"]
-    assert isinstance(call_body, list)
-    assert len(call_body) == 2
+    # One HTTP call per image
+    assert mock_post.call_count == 2
 
 
 def test_list_runs():
