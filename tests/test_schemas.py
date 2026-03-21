@@ -3,7 +3,7 @@ from validation_pipeline.schemas.spec import (
     FormalSpec, ContentCriterion, QualityCriterion, QuantityTarget, OutputFormat,
 )
 from validation_pipeline.schemas.plan import ValidationPlan, PlanStep, SamplingStrategy, CostEstimate
-from validation_pipeline.schemas.execution import ToolResult
+from validation_pipeline.schemas.execution import ToolResult, ImageResult, ExecutionSummary
 from validation_pipeline.schemas.program import ProgramLine
 
 
@@ -110,3 +110,33 @@ def test_user_input_with_dataset_path():
     ui = UserInput(dataset_path="/data/coco", intent="find horses")
     assert ui.dataset_path == "/data/coco"
     assert ui.dataset_description is None
+
+
+def test_image_result_has_errors_field():
+    ir = ImageResult(
+        image_id="test", image_path="/test.jpg",
+        tool_results=[], verdict="error",
+        verdict_reason="API failed",
+        errors=["nvidia_grounding_dino: API timeout"],
+    )
+    assert ir.errors == ["nvidia_grounding_dino: API timeout"]
+    assert ir.verdict == "error"
+
+
+def test_image_result_errors_default_empty():
+    ir = ImageResult(
+        image_id="test", image_path="/test.jpg",
+        tool_results=[], verdict="usable",
+        verdict_reason="All passed",
+    )
+    assert ir.errors == []
+
+
+def test_execution_summary_has_error_count():
+    summary = ExecutionSummary(error_count=3)
+    assert summary.error_count == 3
+
+
+def test_execution_summary_error_count_default_zero():
+    summary = ExecutionSummary()
+    assert summary.error_count == 0
