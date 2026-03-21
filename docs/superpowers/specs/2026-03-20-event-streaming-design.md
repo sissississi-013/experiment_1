@@ -175,52 +175,63 @@ bus = self.event_bus
 # Module 0: Dataset Resolution
 bus.publish(ModuleStarted(module="dataset_resolver"))
 t = time.time()
-# ... resolve ...
-bus.publish(DatasetResolved(module="dataset_resolver", source=..., image_count=..., download_path=...))
+# ... resolve and download ...
+# image_count derived from listing the download_path directory after download
+bus.publish(DatasetResolved(module="dataset_resolver", source=plan.source, image_count=len(images), download_path=local_path))
 bus.publish(ModuleCompleted(module="dataset_resolver", duration_seconds=time.time()-t))
 
 # Module 1: Spec Generator
 bus.publish(ModuleStarted(module="spec_generator"))
 t = time.time()
-spec = generate_spec(user_input, self.config, event_bus=bus)
+spec = generate_spec(user_input, self.config)  # no event_bus param needed
 bus.publish(SpecGenerated(module="spec_generator", spec_summary=spec.restated_request, ...))
 bus.publish(ModuleCompleted(module="spec_generator", duration_seconds=time.time()-t))
 ```
 
-**Executor** publishes per-image progress and verdicts:
+Note: Module functions (spec_generator, planner, calibrator, compiler, supervisor, reporter) do NOT receive `event_bus`. Only `execute_program` receives it, because it publishes per-image progress from inside its loop.
+
+**Executor** publishes per-image progress and verdicts from `execute_program`'s main loop (NOT from `_run_program_on_image`):
 
 ```python
-# Inside _run_program_on_image or execute_program
-if event_bus:
-    event_bus.publish(ImageProgress(module="executor", current=i+1, total=len(image_paths), image_path=img_path))
+# execute_program signature gains event_bus:
+def execute_program(program, dataset_path, tools, calibration=None, sample_paths=None, event_bus=None):
 
-# After verdict
-if event_bus:
-    event_bus.publish(ImageVerdict(module="executor", image_id=..., verdict=..., scores=..., errors=...))
+# Inside the image loop in execute_program:
+for i, img_path in enumerate(image_paths):
+    if event_bus:
+        event_bus.publish(ImageProgress(module="executor", current=i+1, total=len(image_paths), image_path=img_path))
+    # ... process image ...
+    if event_bus:
+        scores = {tr.dimension: tr.score for tr in img_result.tool_results}
+        event_bus.publish(ImageVerdict(module="executor", image_id=img_result.image_id, image_path=img_path, verdict=img_result.verdict, scores=scores, errors=img_result.errors))
 ```
 
-**Error events** published from the pipeline orchestrator's catch blocks:
+`ToolProgress` events are published from inside `_run_program_on_image` (which receives `event_bus` passed down from `execute_program`):
 
 ```python
+# After each tool completes in _run_program_on_image:
+if event_bus:
+    event_bus.publish(ToolProgress(module="executor", tool_name=tool_name, image_path=image_path, score=tr.score, passed=passed))
+```
+
+**Error events** published from the pipeline orchestrator. Each module call is wrapped in try/except:
+
+```python
+# Around each module call in pipeline.run():
+try:
+    spec = generate_spec(user_input, self.config)
 except PipelineError as e:
     bus.publish(PipelineErrorEvent(module=e.module, error_type=type(e).__name__, message=str(e), context=e.context))
     raise
 ```
 
-### Modules that publish events:
-- `pipeline.py` — lifecycle events (ModuleStarted/Completed) for all modules, error events
-- `executor.py` — ImageProgress, ToolProgress, ImageVerdict
-- `dataset_resolver.py` — DatasetResolved (optional, could also be done in pipeline.py)
+### Event publishing locations:
+- **`pipeline.py`** — All lifecycle events (ModuleStarted/Completed), data events (SpecGenerated, PlanGenerated, DatasetResolved), error events (PipelineErrorEvent). This is the central coordination point.
+- **`executor.py`** (`execute_program` + `_run_program_on_image`) — ImageProgress, ToolProgress, ImageVerdict. These are the only events published from inside a module, because the executor has per-image iteration that pipeline.py doesn't see.
 
-### Modules that DON'T publish (pipeline.py publishes for them):
-- `spec_generator.py` — pipeline publishes SpecGenerated after the call
-- `planner.py` — pipeline publishes PlanGenerated after the call
-- `calibrator.py` — pipeline publishes ModuleStarted/Completed
-- `compiler.py` — pipeline publishes ModuleStarted/Completed
-- `supervisor.py` — pipeline publishes ModuleStarted/Completed
-- `reporter.py` — pipeline publishes ModuleStarted/Completed
+All other modules (spec_generator, planner, calibrator, compiler, supervisor, reporter) do NOT receive `event_bus` and do NOT publish events. Pipeline.py handles their lifecycle.
 
-This keeps event publishing concentrated in the orchestrator and executor, not scattered across every module.
+This keeps event publishing concentrated in two files only.
 
 ---
 
@@ -228,9 +239,14 @@ This keeps event publishing concentrated in the orchestrator and executor, not s
 
 **Modify**: `run_pipeline.py`
 
-Replace the current "run and then print report" approach with a real-time subscriber that prints progress as events arrive:
+Replace the current "run and then print report" approach with a real-time subscriber that prints progress as events arrive.
+
+**Full wiring in `run_pipeline.py`:**
 
 ```python
+from validation_pipeline.event_bus import EventBus
+from validation_pipeline.events import *
+
 def cli_subscriber(event: PipelineEvent):
     if isinstance(event, ModuleStarted):
         print(f"[{event.module}] Started {event.details}")
@@ -243,10 +259,20 @@ def cli_subscriber(event: PipelineEvent):
         print(f" → {event.verdict} ({scores})")
     elif isinstance(event, PipelineErrorEvent):
         print(f"[{event.module}] ERROR: {event.message}")
-    # ... etc
+
+def run(...):
+    bus = EventBus()
+    bus.subscribe_all(cli_subscriber)
+
+    config = PipelineConfig(openai_api_key=...)
+    pipeline = ValidationPipeline(config, event_bus=bus)
+    report = pipeline.run(user_input, auto_approve=True)
+
+    # Full report still printed at the end
+    print_report(report)
 ```
 
-The report is still printed at the end, but now the user sees every step as it happens.
+The user sees every step as it happens, then the full report at the end.
 
 ---
 
