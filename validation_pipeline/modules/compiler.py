@@ -1,11 +1,16 @@
 import uuid
 from validation_pipeline.schemas.plan import ValidationPlan
 from validation_pipeline.schemas.program import CompiledProgram, ProgramLine, BatchStrategy
+from validation_pipeline.errors import SpecValidationError
 
 
 def compile_plan(plan: ValidationPlan) -> CompiledProgram:
     if not plan.user_approved:
-        raise ValueError("Cannot compile a plan that is not approved by the user")
+        raise SpecValidationError(
+            "Cannot compile a plan that is not approved by the user",
+            module="compiler",
+            context={"plan_id": plan.plan_id},
+        )
 
     sorted_steps = sorted(plan.steps, key=lambda s: (s.tier, s.parallel_group, s.step_id))
 
