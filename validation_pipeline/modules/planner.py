@@ -9,14 +9,17 @@ from validation_pipeline.config import PipelineConfig
 SYSTEM_PROMPT = """You are a validation plan generator. Given a formal specification, calibration results, and available tools, produce a validation plan.
 
 Rules:
-1. For each content criterion, select a detection tool (prefer open-vocabulary like grounding_dino)
+1. For each content criterion, select a detection tool (prefer open-vocabulary like roboflow_object_detection)
 2. For each quality criterion, select a measurement tool matching the dimension
 3. Use calibrated thresholds when available, defaults otherwise
-4. Order steps by tier: Tier 1 (cheap, CPU) first, Tier 2 (GPU) second, Tier 3 (VLM) last
+4. Order steps by tier: Tier 1 (cheap, CPU) first, Tier 2 (API) second, Tier 3 (VLM) last
 5. Group independent steps in the same parallel_group
 6. Each tool selection MUST include a hypothesis explaining why this tool was chosen and what you expect
 7. Set combination_logic to "ALL_PASS" unless the spec suggests otherwise
-8. Estimate cost based on tool cost_estimate_ms and expected dataset size"""
+8. Estimate cost based on tool cost_estimate_ms and expected dataset size
+9. For content_detection tools (Tier 2), set tool_params to {"target_label": "<object from content_criteria>"}
+10. For semantic_quality tools (Tier 3), set tool_params to {"semantic_question": "<description from criterion>"}
+11. For image_quality tools (Tier 1), leave tool_params as null"""
 
 
 def _call_llm(
