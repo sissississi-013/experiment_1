@@ -26,6 +26,12 @@ datasets = [
 ]
 dev = [
     "pytest>=7.0",
+    "python-dotenv>=1.0",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests that require API keys and network access",
 ]
 
 [tool.setuptools.packages.find]
