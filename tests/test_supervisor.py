@@ -58,3 +58,27 @@ def test_supervisor_warns_on_high_flag_rate():
 def test_supervisor_blocks_on_zero_usable():
     report = supervise(_make_result(1.0), _make_cal(), _make_plan())
     assert report.status == "blocked"
+
+
+from validation_pipeline.schemas.execution import ExecutionResult, ExecutionSummary
+from validation_pipeline.schemas.calibration import CalibrationResult
+from validation_pipeline.schemas.plan import ValidationPlan, SamplingStrategy, CostEstimate
+from validation_pipeline.modules.supervisor import supervise
+
+def test_supervisor_detects_high_error_rate():
+    result = ExecutionResult(
+        phase="full", total_images=10, processed=10,
+        summary=ExecutionSummary(
+            usable_count=2, recoverable_count=1, unusable_count=2,
+            error_count=5,
+        ),
+    )
+    cal = CalibrationResult(tool_calibrations={}, exemplar_embeddings=[], threshold_report=[])
+    plan = ValidationPlan(
+        plan_id="p1", spec_summary="test", sampling_strategy=SamplingStrategy(),
+        steps=[], combination_logic="ALL_PASS", estimated_cost=CostEstimate(), user_approved=True,
+    )
+    report = supervise(result, cal, plan)
+    error_checks = [c for c in report.checks if c.check_name == "image_error_rate"]
+    assert len(error_checks) == 1
+    assert not error_checks[0].passed

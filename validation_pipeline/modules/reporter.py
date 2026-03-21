@@ -19,6 +19,7 @@ def generate_report(
     usable = result.summary.usable_count
     recoverable = result.summary.recoverable_count
     unusable = result.summary.unusable_count
+    error_count = result.summary.error_count
 
     dim_scores = {}
     for dim, rate in result.summary.flag_rates.items():
@@ -51,6 +52,7 @@ def generate_report(
             usable=usable,
             recoverable=recoverable,
             unusable=unusable,
+            error_count=error_count,
             usable_percentage=usable / total,
             flag_breakdown={d: int(r * total) for d, r in result.summary.flag_rates.items()},
         ),
