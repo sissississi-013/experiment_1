@@ -7,6 +7,7 @@ from validation_pipeline.schemas.execution import (
 )
 from validation_pipeline.schemas.calibration import CalibrationResult
 from validation_pipeline.tools.base import BaseTool
+from validation_pipeline.errors import ToolError
 
 
 def execute_program(
@@ -41,8 +42,9 @@ def execute_program(
                 image_id=Path(img_path).stem,
                 image_path=img_path,
                 tool_results=[],
-                verdict="unusable",
+                verdict="error",
                 verdict_reason=f"Processing error: {str(e)}",
+                errors=[str(e)],
             ))
 
     summary = _compute_summary(results, time.time() - start_time)
@@ -68,6 +70,7 @@ def _run_program_on_image(
     all_passed = True
     lines_executed = 0
     reasons = []
+    errors = []
 
     current_tier = 0
     tier_failed = False
@@ -87,7 +90,11 @@ def _run_program_on_image(
 
         tool = tools[tool_name]
         params = line.tool_params or {}
-        raw_output = tool.execute(image, **params)
+        try:
+            raw_output = tool.execute(image, **params)
+        except Exception as e:
+            errors.append(f"{tool_name}: {e}")
+            continue
         lines_executed += 1
 
         dim_key = line.variable_name.replace("_score", "")
@@ -115,7 +122,10 @@ def _run_program_on_image(
             tier_failed = True
             reasons.append(f"{tr.dimension}: {tr.score:.2f} failed threshold {threshold}")
 
-    if all_passed:
+    if not tool_results and errors:
+        verdict = "error"
+        reason = "All tools failed: " + "; ".join(errors)
+    elif all_passed:
         verdict = "usable"
         reason = "All checks passed"
     elif len(reasons) == 1:
@@ -132,6 +142,7 @@ def _run_program_on_image(
         verdict=verdict,
         verdict_reason=reason,
         lines_executed=lines_executed,
+        errors=errors,
     )
 
 
@@ -139,6 +150,7 @@ def _compute_summary(results: list[ImageResult], wall_time: float) -> ExecutionS
     usable = sum(1 for r in results if r.verdict == "usable")
     recoverable = sum(1 for r in results if r.verdict == "recoverable")
     unusable = sum(1 for r in results if r.verdict == "unusable")
+    error = sum(1 for r in results if r.verdict == "error")
 
     flag_rates: dict[str, float] = {}
     for r in results:
@@ -148,10 +160,20 @@ def _compute_summary(results: list[ImageResult], wall_time: float) -> ExecutionS
     total = len(results) or 1
     flag_rates = {k: v / total for k, v in flag_rates.items()}
 
+    # Populate tool_error_rate from per-image errors
+    tool_errors: dict[str, int] = {}
+    for r in results:
+        for err_msg in r.errors:
+            tool_name = err_msg.split(":")[0].strip() if ":" in err_msg else "unknown"
+            tool_errors[tool_name] = tool_errors.get(tool_name, 0) + 1
+    tool_error_rate = {k: v / total for k, v in tool_errors.items()}
+
     return ExecutionSummary(
         usable_count=usable,
         recoverable_count=recoverable,
         unusable_count=unusable,
+        error_count=error,
         flag_rates=flag_rates,
+        tool_error_rate=tool_error_rate,
         wall_time_seconds=wall_time,
     )
