@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Full App — All Pages</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
+    background: #000;
+    color: #f5f5f7;
+    padding: 40px 20px 80px;
+  }
+  h1 {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .page-subtitle { text-align: center; color: #6e6e73; font-size: 17px; margin-bottom: 60px; }
+  .section-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #6e6e73;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+    padding-left: 4px;
+  }
+  .screens { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 80px; }
+
+  /* Mac window chrome */
+  .mac-window {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  }
+  .mac-tb {
+    background: linear-gradient(180deg, #3a3a3c, #2c2c2e);
+    height: 38px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot-r { background: #ff5f57; }
+  .dot-y { background: #febc2e; }
+  .dot-g { background: #28c840; }
+  .tb-title { flex:1; text-align:center; font-size:13px; color:#a1a1a6; font-weight:500; }
+
+  .app { display: flex; min-height: 520px; background: #000; }
+
+  /* Sidebar */
+  .sb {
+    width: 220px;
+    background: rgba(28,28,30,0.95);
+    backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255,255,255,0.06);
+    padding: 14px 10px;
+    flex-shrink: 0;
+  }
+  .sb-sec { font-size:10px; font-weight:600; color:#6e6e73; text-transform:uppercase; letter-spacing:0.06em; padding:6px 8px 2px; margin-top:10px; }
+  .sb-sec:first-child { margin-top: 0; }
+  .sb-item { display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:6px; font-size:13px; color:#d1d1d6; margin-bottom:1px; }
+  .sb-item.on { background:rgba(0,113,227,0.25); color:#fff; }
+  .sb-item .ic { font-size:14px; width:18px; text-align:center; }
+  .sb-item .ct { margin-left:auto; font-size:10px; color:#6e6e73; background:rgba(255,255,255,0.06); padding:1px 5px; border-radius:4px; }
+
+  /* Main area */
+  .mn { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+  /* Segmented control */
+  .seg { display:flex; background:rgba(255,255,255,0.06); border-radius:8px; padding:2px; margin:14px 20px 0; }
+  .seg-i { flex:1; text-align:center; padding:5px 10px; font-size:12px; color:#6e6e73; border-radius:6px; font-weight:500; }
+  .seg-i.on { background:rgba(255,255,255,0.1); color:#f5f5f7; box-shadow:0 1px 3px rgba(0,0,0,0.2); }
+
+  /* Form elements */
+  .frm { padding:20px; flex:1; }
+  .frm-t { font-size:20px; font-weight:700; letter-spacing:-0.02em; margin-bottom:3px; }
+  .frm-st { font-size:12px; color:#6e6e73; margin-bottom:20px; }
+  .fg { margin-bottom:14px; }
+  .fl { font-size:11px; color:#a1a1a6; margin-bottom:4px; font-weight:500; }
+  .fi {
+    width:100%; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1);
+    border-radius:10px; padding:9px 12px; color:#f5f5f7; font-size:13px; font-family:inherit;
+  }
+  .fi.lg { min-height:52px; font-size:15px; }
+  .fr { display:flex; gap:10px; }
+  .fr > * { flex:1; }
+  .btn {
+    background:#0071e3; color:white; border:none; border-radius:980px;
+    padding:9px 22px; font-size:14px; font-weight:500; font-family:inherit; cursor:pointer;
+  }
+  .btn:hover { background:#0077ed; }
+  .fa { display:flex; justify-content:flex-end; margin-top:20px; }
+
+  /* Stats */
+  .stats { display:flex; gap:1px; padding:14px 20px 6px; }
+  .st { flex:1; background:rgba(255,255,255,0.04); padding:14px; text-align:center; }
+  .st:first-child { border-radius:10px 0 0 10px; }
+  .st:last-child { border-radius:0 10px 10px 0; }
+  .st-v { font-size:26px; font-weight:700; letter-spacing:-0.02em; }
+  .st-l { font-size:10px; color:#6e6e73; margin-top:2px; }
+  .grn { color:#34c759; }
+  .org { color:#ff9f0a; }
+  .red { color:#ff3b30; }
+
+  /* Progress */
+  .pbar { height:3px; background:rgba(255,255,255,0.06); border-radius:2px; margin:6px 20px 12px; overflow:hidden; }
+  .pfill { height:100%; width:60%; background:linear-gradient(90deg,#0071e3,#00c7ff); border-radius:2px; }
+
+  .plog { padding:0 20px 12px; }
+  .pl { display:flex; align-items:center; gap:6px; padding:3px 0; font-size:11px; font-family:'SF Mono','Menlo',monospace; }
+  .pl .mod { color:#0071e3; min-width:110px; }
+  .pl .msg { color:#a1a1a6; }
+  .pl .tm { color:#6e6e73; margin-left:auto; font-size:10px; }
+  .pl.act .msg { color:#f5f5f7; }
+
+  /* Image grid */
+  .igrid { display:grid; grid-template-columns:repeat(5,1fr); gap:2px; padding:10px 20px; }
+  .icell {
+    aspect-ratio:1; background:#1c1c1e; border-radius:4px; position:relative; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .icell .vdot { position:absolute; top:5px; right:5px; width:7px; height:7px; border-radius:50%; }
+  .icell .ph { font-size:9px; color:#3a3a3c; }
+  .icell .score-overlay {
+    position:absolute; bottom:0; left:0; right:0;
+    background:linear-gradient(transparent, rgba(0,0,0,0.7));
+    padding:4px 6px;
+    font-size:9px;
+    color:#a1a1a6;
+  }
+
+  /* History table */
+  .htable { padding:16px 20px; }
+  .hrow {
+    display:flex; align-items:center; padding:10px 12px; border-radius:8px;
+    margin-bottom:2px; font-size:13px; transition: background 0.2s;
+  }
+  .hrow:hover { background:rgba(255,255,255,0.04); }
+  .hrow .rid { width:80px; color:#0071e3; font-family:'SF Mono','Menlo',monospace; font-size:12px; }
+  .hrow .rint { flex:1; color:#f5f5f7; }
+  .hrow .rstatus { width:80px; text-align:center; font-size:11px; font-weight:500; }
+  .hrow .rstatus.completed { color:#34c759; }
+  .hrow .rstatus.failed { color:#ff3b30; }
+  .hrow .rcount { width:60px; text-align:right; color:#6e6e73; font-size:12px; }
+  .hrow .rscore { width:60px; text-align:right; color:#f5f5f7; font-weight:600; font-size:13px; }
+  .hrow .rtime { width:120px; text-align:right; color:#6e6e73; font-size:11px; }
+  .hheader { font-size:11px; color:#6e6e73; font-weight:500; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:8px; margin-bottom:4px; }
+
+  /* Image detail panel */
+  .detail-panel {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    flex: 1;
+  }
+  .detail-image {
+    width: 280px;
+    height: 280px;
+    background: #1c1c1e;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #3a3a3c;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .detail-info { flex: 1; }
+  .detail-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .detail-verdict { font-size: 13px; margin-bottom: 16px; }
+  .score-bars { display: flex; flex-direction: column; gap: 10px; }
+  .score-row { display: flex; align-items: center; gap: 10px; }
+  .score-label { width: 80px; font-size: 12px; color: #a1a1a6; }
+  .score-track { flex: 1; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 3px; }
+  .score-val { width: 40px; text-align: right; font-size: 12px; font-weight: 600; font-family: 'SF Mono','Menlo',monospace; }
+
+  .annotation { margin-top: 20px; font-size: 12px; color: #6e6e73; text-align: center; font-style: italic; }
+</style>
+</head>
+<body>
+
+<h1>Validation Pipeline</h1>
+<p class="page-subtitle">Complete app experience — all 4 views</p>
+
+<div class="screens">
+
+<!-- ====== SCREEN 1: NEW RUN ====== -->
+<div>
+  <div class="section-label">Screen 1 — New Run (Default Landing)</div>
+  <div class="mac-window">
+    <div class="mac-tb">
+      <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+      <div class="tb-title">Validation Pipeline</div>
+      <div style="width:44px"></div>
+    </div>
+    <div class="app">
+      <div class="sb">
+        <div class="sb-sec">Navigation</div>
+        <div class="sb-item on"><span class="ic">+</span> New Run</div>
+        <div class="sb-item"><span class="ic">&#9654;</span> Live View</div>
+        <div class="sb-item"><span class="ic">&#9776;</span> History <span class="ct">3</span></div>
+        <div class="sb-item"><span class="ic">&#9635;</span> Gallery</div>
+        <div class="sb-sec">Recent</div>
+        <div class="sb-item"><span class="ic" style="color:#34c759">&#9679;</span> c8109182 <span class="ct">1/10</span></div>
+        <div class="sb-item"><span class="ic" style="color:#ff3b30">&#9679;</span> 8248f7b8 <span class="ct">fail</span></div>
+        <div class="sb-item"><span class="ic" style="color:#34c759">&#9679;</span> a511d39f <span class="ct">8/20</span></div>
+      </div>
+      <div class="mn">
+        <div class="frm">
+          <div class="frm-t">Start a Validation Run</div>
+          <div class="frm-st">Describe what you're looking for and the pipeline handles the rest.</div>
+          <div class="fg">
+            <div class="fl">What do you want to validate?</div>
+            <div class="fi lg" style="color:#a1a1a6">find 10 sharp, well-exposed images of horses from COCO</div>
+          </div>
+          <div class="fr">
+            <div class="fg"><div class="fl">Dataset Source</div><div class="fi">Auto-detect from intent</div></div>
+            <div class="fg"><div class="fl">Max Images</div><div class="fi">50</div></div>
+          </div>
+          <div class="fr">
+            <div class="fg"><div class="fl">Good Exemplars <span style="color:#6e6e73">(optional)</span></div><div class="fi" style="color:#6e6e73;font-size:12px;border-style:dashed;">Drop images or browse...</div></div>
+            <div class="fg"><div class="fl">Bad Exemplars <span style="color:#6e6e73">(optional)</span></div><div class="fi" style="color:#6e6e73;font-size:12px;border-style:dashed;">Drop images or browse...</div></div>
+          </div>
+          <div class="fa"><button class="btn">Start Validation</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SCREEN 2: LIVE EXECUTION ====== -->
+<div>
+  <div class="section-label">Screen 2 — Live Execution (auto-switches when run starts)</div>
+  <div class="mac-window">
+    <div class="mac-tb">
+      <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+      <div class="tb-title">Validation Pipeline — Run c8109182</div>
+      <div style="width:44px"></div>
+    </div>
+    <div class="app">
+      <div class="sb">
+        <div class="sb-sec">Navigation</div>
+        <div class="sb-item"><span class="ic">+</span> New Run</div>
+        <div class="sb-item on"><span class="ic">&#9654;</span> Live View</div>
+        <div class="sb-item"><span class="ic">&#9776;</span> History <span class="ct">3</span></div>
+        <div class="sb-item"><span class="ic">&#9635;</span> Gallery</div>
+        <div class="sb-sec">Recent</div>
+        <div class="sb-item" style="background:rgba(0,199,255,0.1);">
+          <span class="ic" style="color:#00c7ff">&#8226;</span> c8109182 <span class="ct" style="color:#0071e3">live</span>
+        </div>
+      </div>
+      <div class="mn">
+        <div class="stats">
+          <div class="st">
+            <div class="st-v" style="color:#f5f5f7">6<span style="color:#6e6e73;font-size:13px">/10</span></div>
+            <div class="st-l">Processed</div>
+          </div>
+          <div class="st"><div class="st-v grn">1</div><div class="st-l">Usable</div></div>
+          <div class="st"><div class="st-v org">4</div><div class="st-l">Recoverable</div></div>
+          <div class="st"><div class="st-v red">1</div><div class="st-l">Unusable</div></div>
+          <div class="st"><div class="st-v" style="color:#f5f5f7">33.5<span style="color:#6e6e73;font-size:11px">s</span></div><div class="st-l">Elapsed</div></div>
+        </div>
+        <div class="pbar"><div class="pfill"></div></div>
+        <div class="plog">
+          <div class="pl"><span class="mod">[dataset_resolver]</span><span class="msg">Downloaded 10 images from coco</span><span class="tm">1.8s</span></div>
+          <div class="pl"><span class="mod">[spec_generator]</span><span class="msg">Extract 10 sharp horse images</span><span class="tm">2.0s</span></div>
+          <div class="pl"><span class="mod">[planner]</span><span class="msg">3 steps across tiers [1, 2]</span><span class="tm">3.7s</span></div>
+          <div class="pl act"><span class="mod" style="color:#00c7ff">[executor]</span><span class="msg">6/10 — 000000319721.jpg <span style="color:#34c759">usable</span></span><span class="tm">18.2s</span></div>
+        </div>
+        <div class="igrid">
+          <div class="icell"><div class="vdot" style="background:#ff9f0a"></div><div class="ph">016228</div><div class="score-overlay">0.41</div></div>
+          <div class="icell"><div class="vdot" style="background:#ff9f0a"></div><div class="ph">061171</div><div class="score-overlay">0.38</div></div>
+          <div class="icell"><div class="vdot" style="background:#ff9f0a"></div><div class="ph">113235</div><div class="score-overlay">0.45</div></div>
+          <div class="icell"><div class="vdot" style="background:#ff9f0a"></div><div class="ph">121031</div><div class="score-overlay">0.36</div></div>
+          <div class="icell"><div class="vdot" style="background:#34c759"></div><div class="ph">319721</div><div class="score-overlay">0.61</div></div>
+          <div class="icell"><div class="vdot" style="background:#ff3b30"></div><div class="ph">382088</div><div class="score-overlay">0.40</div></div>
+          <div class="icell" style="opacity:0.2"><div class="ph">...</div></div>
+          <div class="icell" style="opacity:0.2"><div class="ph">...</div></div>
+          <div class="icell" style="opacity:0.1"><div class="ph">...</div></div>
+          <div class="icell" style="opacity:0.1"><div class="ph">...</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SCREEN 3: HISTORY ====== -->
+<div>
+  <div class="section-label">Screen 3 — Run History (from Neon database)</div>
+  <div class="mac-window">
+    <div class="mac-tb">
+      <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+      <div class="tb-title">Validation Pipeline — History</div>
+      <div style="width:44px"></div>
+    </div>
+    <div class="app">
+      <div class="sb">
+        <div class="sb-sec">Navigation</div>
+        <div class="sb-item"><span class="ic">+</span> New Run</div>
+        <div class="sb-item"><span class="ic">&#9654;</span> Live View</div>
+        <div class="sb-item on"><span class="ic">&#9776;</span> History <span class="ct">3</span></div>
+        <div class="sb-item"><span class="ic">&#9635;</span> Gallery</div>
+      </div>
+      <div class="mn">
+        <div class="frm">
+          <div class="frm-t">Run History</div>
+          <div class="frm-st">All pipeline runs stored in Neon Postgres</div>
+        </div>
+        <div class="htable">
+          <div class="hrow hheader">
+            <div class="rid">Run ID</div>
+            <div class="rint">Intent</div>
+            <div class="rstatus">Status</div>
+            <div class="rcount">Images</div>
+            <div class="rscore">Score</div>
+            <div class="rtime">Time</div>
+          </div>
+          <div class="hrow">
+            <div class="rid">c8109182</div>
+            <div class="rint">find 10 sharp, well-exposed images of horses</div>
+            <div class="rstatus completed">completed</div>
+            <div class="rcount">10</div>
+            <div class="rscore">0.10</div>
+            <div class="rtime">Mar 21, 00:02</div>
+          </div>
+          <div class="hrow">
+            <div class="rid">8248f7b8</div>
+            <div class="rint">find 10 sharp, well-exposed images of horses</div>
+            <div class="rstatus failed">failed</div>
+            <div class="rcount">10</div>
+            <div class="rscore">—</div>
+            <div class="rtime">Mar 20, 23:56</div>
+          </div>
+          <div class="hrow">
+            <div class="rid">a511d39f</div>
+            <div class="rint">find 20 well-lit cat photos from COCO</div>
+            <div class="rstatus completed">completed</div>
+            <div class="rcount">20</div>
+            <div class="rscore">0.60</div>
+            <div class="rtime">Mar 20, 19:30</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SCREEN 4: IMAGE GALLERY ====== -->
+<div>
+  <div class="section-label">Screen 4 — Image Gallery (click an image to see detail)</div>
+  <div class="mac-window">
+    <div class="mac-tb">
+      <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+      <div class="tb-title">Validation Pipeline — Gallery</div>
+      <div style="width:44px"></div>
+    </div>
+    <div class="app">
+      <div class="sb">
+        <div class="sb-sec">Navigation</div>
+        <div class="sb-item"><span class="ic">+</span> New Run</div>
+        <div class="sb-item"><span class="ic">&#9654;</span> Live View</div>
+        <div class="sb-item"><span class="ic">&#9776;</span> History <span class="ct">3</span></div>
+        <div class="sb-item on"><span class="ic">&#9635;</span> Gallery</div>
+        <div class="sb-sec">Filter</div>
+        <div class="sb-item on" style="font-size:12px"><span class="ic">&#9679;</span> All verdicts</div>
+        <div class="sb-item" style="font-size:12px"><span class="ic" style="color:#34c759">&#9679;</span> Usable</div>
+        <div class="sb-item" style="font-size:12px"><span class="ic" style="color:#ff9f0a">&#9679;</span> Recoverable</div>
+        <div class="sb-item" style="font-size:12px"><span class="ic" style="color:#ff3b30">&#9679;</span> Unusable</div>
+      </div>
+      <div class="mn">
+        <div class="detail-panel">
+          <div class="detail-image">000000319721.jpg</div>
+          <div class="detail-info">
+            <div class="detail-title">000000319721.jpg</div>
+            <div class="detail-verdict"><span style="color:#34c759;font-weight:600;">Usable</span> — All checks passed</div>
+            <div class="score-bars">
+              <div class="score-row">
+                <div class="score-label">Blur</div>
+                <div class="score-track"><div class="score-fill" style="width:100%;background:#34c759"></div></div>
+                <div class="score-val" style="color:#34c759">1.00</div>
+              </div>
+              <div class="score-row">
+                <div class="score-label">Exposure</div>
+                <div class="score-track"><div class="score-fill" style="width:45%;background:#ff9f0a"></div></div>
+                <div class="score-val" style="color:#ff9f0a">0.45</div>
+              </div>
+              <div class="score-row">
+                <div class="score-label">Content</div>
+                <div class="score-track"><div class="score-fill" style="width:61%;background:#34c759"></div></div>
+                <div class="score-val" style="color:#34c759">0.61</div>
+              </div>
+            </div>
+            <div style="margin-top:20px;padding:12px;background:rgba(255,255,255,0.04);border-radius:10px;font-size:12px;">
+              <div style="color:#a1a1a6;margin-bottom:4px;font-weight:500;">Audit</div>
+              <div style="color:#6e6e73;font-family:'SF Mono','Menlo',monospace;font-size:11px;line-height:1.6;">
+                L1: laplacian_blur → 1842.3 → cal 1.00 ≥ 0.40 PASS<br>
+                L2: histogram_exposure → 0.45 → cal 0.45 ≥ 0.45 PASS<br>
+                L3: nvidia_grounding_dino → 0.61 ≥ 0.60 PASS
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="annotation">Scroll to see all 4 screens. These will be implemented as Next.js pages with Apple's design system.</div>
+
+</body>
+</html>

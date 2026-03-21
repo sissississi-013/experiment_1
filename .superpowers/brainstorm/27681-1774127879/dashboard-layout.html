@@ -1,0 +1,135 @@
+<h2>Dashboard Layout Direction</h2>
+<p class="subtitle">How should the main validation dashboard be structured?</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f5f5f7;padding:20px;">
+      <!-- Layout A: Single-page pipeline view -->
+      <div style="font-family:-apple-system,sans-serif;font-size:11px;color:#1d1d1f;">
+        <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          <div style="font-weight:700;font-size:13px;margin-bottom:8px;">Pipeline Runner</div>
+          <div style="background:#f5f5f7;border-radius:8px;padding:10px;font-size:10px;color:#6e6e73;">
+            "find 10 sharp images of horses from COCO"
+          </div>
+          <div style="margin-top:8px;background:#0071e3;color:white;border-radius:980px;display:inline-block;padding:4px 16px;font-size:10px;">Run Pipeline</div>
+        </div>
+        <div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          <div style="font-weight:700;font-size:13px;margin-bottom:8px;">Live Progress</div>
+          <div style="font-size:10px;color:#6e6e73;line-height:1.8;">
+            <div>[spec_generator] Completed (2.1s)</div>
+            <div>[planner] 3 steps across tiers [1, 2]</div>
+            <div style="color:#0071e3;">[executor] 3/10 processing...</div>
+          </div>
+        </div>
+        <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          <div style="font-weight:700;font-size:13px;margin-bottom:8px;">Results</div>
+          <div style="display:flex;gap:8px;">
+            <div style="flex:1;text-align:center;background:#f5f5f7;border-radius:8px;padding:8px;">
+              <div style="font-size:20px;font-weight:700;color:#34c759;">4</div>
+              <div style="font-size:9px;color:#6e6e73;">Usable</div>
+            </div>
+            <div style="flex:1;text-align:center;background:#f5f5f7;border-radius:8px;padding:8px;">
+              <div style="font-size:20px;font-weight:700;color:#ff9f0a;">5</div>
+              <div style="font-size:9px;color:#6e6e73;">Recoverable</div>
+            </div>
+            <div style="flex:1;text-align:center;background:#f5f5f7;border-radius:8px;padding:8px;">
+              <div style="font-size:20px;font-weight:700;color:#ff3b30;">1</div>
+              <div style="font-size:9px;color:#6e6e73;">Unusable</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Single-Page Flow</h3>
+      <p>Everything on one scrolling page: intent input at top, live progress in the middle, results at bottom. Like a Keynote presentation — each section is a "slide". Clean, linear, Apple-style storytelling.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f5f5f7;padding:20px;">
+      <!-- Layout B: Sidebar + Main -->
+      <div style="font-family:-apple-system,sans-serif;font-size:11px;color:#1d1d1f;display:flex;gap:8px;">
+        <div style="width:35%;background:#fff;border-radius:12px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          <div style="font-weight:700;font-size:12px;margin-bottom:10px;">Runs</div>
+          <div style="background:#0071e3;color:white;border-radius:8px;padding:8px;margin-bottom:6px;font-size:10px;">
+            c8109182 — horses<br><span style="opacity:0.7">10 imgs, 1 usable</span>
+          </div>
+          <div style="background:#f5f5f7;border-radius:8px;padding:8px;margin-bottom:6px;font-size:10px;">
+            8248f7b8 — horses<br><span style="color:#6e6e73">10 imgs, failed</span>
+          </div>
+          <div style="background:#f5f5f7;border-radius:8px;padding:8px;font-size:10px;">
+            a511d39f — dogs<br><span style="color:#6e6e73">20 imgs, 12 usable</span>
+          </div>
+        </div>
+        <div style="width:65%;background:#fff;border-radius:12px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          <div style="font-weight:700;font-size:12px;margin-bottom:6px;">Run c8109182</div>
+          <div style="font-size:10px;color:#6e6e73;margin-bottom:10px;">"find 10 sharp horses"</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <div style="background:#f5f5f7;border-radius:6px;padding:6px;text-align:center;">
+              <div style="font-size:16px;font-weight:700;">0.10</div>
+              <div style="font-size:9px;color:#6e6e73;">Score</div>
+            </div>
+            <div style="background:#f5f5f7;border-radius:6px;padding:6px;text-align:center;">
+              <div style="font-size:16px;font-weight:700;">33.5s</div>
+              <div style="font-size:9px;color:#6e6e73;">Duration</div>
+            </div>
+          </div>
+          <div style="margin-top:8px;font-size:10px;">
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f5f5f7;">
+              <span>000000016228.jpg</span>
+              <span style="color:#ff9f0a;">recoverable</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f5f5f7;">
+              <span>000000319721.jpg</span>
+              <span style="color:#34c759;">usable</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Sidebar + Detail</h3>
+      <p>Left sidebar lists all runs. Click a run to see its details on the right. Classic master-detail layout. Better for browsing history and comparing runs. Feels more like a data tool.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f5f5f7;padding:20px;">
+      <!-- Layout C: Tab-based -->
+      <div style="font-family:-apple-system,sans-serif;font-size:11px;color:#1d1d1f;">
+        <div style="display:flex;gap:0;margin-bottom:10px;background:#e8e8ed;border-radius:8px;padding:2px;">
+          <div style="flex:1;text-align:center;background:#fff;border-radius:6px;padding:6px;font-weight:600;font-size:10px;box-shadow:0 1px 2px rgba(0,0,0,0.08);">New Run</div>
+          <div style="flex:1;text-align:center;padding:6px;font-size:10px;color:#6e6e73;">History</div>
+          <div style="flex:1;text-align:center;padding:6px;font-size:10px;color:#6e6e73;">Gallery</div>
+        </div>
+        <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          <div style="font-weight:700;font-size:14px;margin-bottom:12px;">New Validation Run</div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:9px;color:#6e6e73;margin-bottom:4px;">What do you want to validate?</div>
+            <div style="background:#f5f5f7;border-radius:8px;padding:10px;font-size:10px;color:#6e6e73;">
+              "find 10 sharp, well-exposed images of horses..."
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <div style="flex:1;">
+              <div style="font-size:9px;color:#6e6e73;margin-bottom:4px;">Dataset source</div>
+              <div style="background:#f5f5f7;border-radius:8px;padding:8px;font-size:10px;">COCO val2017</div>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:9px;color:#6e6e73;margin-bottom:4px;">Max images</div>
+              <div style="background:#f5f5f7;border-radius:8px;padding:8px;font-size:10px;">50</div>
+            </div>
+          </div>
+          <div style="margin-top:12px;text-align:right;">
+            <div style="background:#0071e3;color:white;border-radius:980px;display:inline-block;padding:6px 20px;font-size:11px;">Start Validation</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Tabbed Sections</h3>
+      <p>iOS-style segmented control at top: New Run / History / Gallery. Each tab is a full-screen experience. Clean separation of concerns. The "New Run" tab has a form, History shows past runs, Gallery shows images across runs.</p>
+    </div>
+  </div>
+</div>
