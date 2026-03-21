@@ -7,6 +7,7 @@ class DatasetStats(BaseModel):
     usable: int
     recoverable: int
     unusable: int
+    error_count: int = 0
     usable_percentage: float
     flag_breakdown: dict[str, int]
 

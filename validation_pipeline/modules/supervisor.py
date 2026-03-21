@@ -42,6 +42,23 @@ def supervise(
                 suggested_action=f"Check image formats and sizes for {tool} compatibility",
             ))
 
+    # Check for high image error rate
+    error_count = result.summary.error_count
+    if result.total_images > 0:
+        error_rate = error_count / result.total_images
+        checks.append(SupervisionCheck(
+            check_name="image_error_rate",
+            passed=error_rate < 0.1,
+            details=f"Image error rate: {error_rate:.1%} ({error_count}/{result.total_images})",
+        ))
+        if error_rate >= 0.1:
+            anomalies.append(Anomaly(
+                severity="blocker" if error_rate > 0.5 else "warning",
+                description=f"{error_count} images failed with tool errors ({error_rate:.0%})",
+                likely_cause="Tool API failures or incompatible image formats",
+                suggested_action="Check API keys, network connectivity, and image formats",
+            ))
+
     empty = result.summary.usable_count == 0 and result.processed > 0
     checks.append(SupervisionCheck(
         check_name="empty_result",
