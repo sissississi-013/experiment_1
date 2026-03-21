@@ -16,6 +16,12 @@ load_dotenv()
 from validation_pipeline.config import PipelineConfig
 from validation_pipeline.schemas.user_input import UserInput
 from validation_pipeline.pipeline import ValidationPipeline
+from validation_pipeline.event_bus import EventBus
+from validation_pipeline.events import (
+    PipelineEvent, ModuleStarted, ModuleCompleted, ImageProgress,
+    ImageVerdict, SpecGenerated, PlanGenerated, DatasetResolved,
+    PipelineErrorEvent, ToolProgress,
+)
 
 
 def print_header(text):
@@ -28,11 +34,37 @@ def print_section(text):
     print(f"\n--- {text} ---")
 
 
+def cli_subscriber(event: PipelineEvent):
+    """Print real-time progress to console."""
+    if isinstance(event, ModuleStarted):
+        detail = f" — {event.details}" if event.details else ""
+        print(f"  [{event.module}] Started{detail}")
+    elif isinstance(event, ModuleCompleted):
+        summary = f" — {event.summary}" if event.summary else ""
+        print(f"  [{event.module}] Completed ({event.duration_seconds:.1f}s){summary}")
+    elif isinstance(event, DatasetResolved):
+        print(f"  [dataset_resolver] Downloaded {event.image_count} images from {event.source}")
+    elif isinstance(event, SpecGenerated):
+        print(f"  [spec_generator] Spec: {event.spec_summary}")
+    elif isinstance(event, PlanGenerated):
+        print(f"  [planner] Plan: {event.steps_count} steps across tiers {event.tiers}")
+    elif isinstance(event, ImageProgress):
+        print(f"  [executor] {event.current}/{event.total} {os.path.basename(event.image_path)}", end="", flush=True)
+    elif isinstance(event, ImageVerdict):
+        scores = ", ".join(f"{k}={v:.2f}" for k, v in event.scores.items())
+        icon = {"usable": "O", "recoverable": "~", "unusable": "X", "error": "!"}
+        print(f" [{icon.get(event.verdict, '?')}] {event.verdict} ({scores})")
+    elif isinstance(event, PipelineErrorEvent):
+        print(f"  [{event.module}] ERROR: {event.message}")
+
+
 def run(intent: str, dataset_path: str | None = None, dataset_description: str | None = None):
     config = PipelineConfig(
         openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
     )
-    pipeline = ValidationPipeline(config)
+    bus = EventBus()
+    bus.subscribe_all(cli_subscriber)
+    pipeline = ValidationPipeline(config, event_bus=bus)
 
     user_input = UserInput(
         intent=intent,
@@ -47,7 +79,6 @@ def run(intent: str, dataset_path: str | None = None, dataset_description: str |
     if dataset_description:
         print(f"Dataset description: {dataset_description}")
 
-    print_section("Running pipeline (auto-approve mode)")
     report = pipeline.run(user_input, auto_approve=True)
 
     # Dataset stats
