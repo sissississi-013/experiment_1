@@ -61,6 +61,14 @@ def generate_plan(
     tools: list[dict],
     config: PipelineConfig | None = None,
 ) -> ValidationPlan:
-    plan = _call_llm(spec, calibration, tools, config)
+    from validation_pipeline.errors import LLMError
+    try:
+        plan = _call_llm(spec, calibration, tools, config)
+    except Exception as e:
+        raise LLMError(
+            f"Plan generation failed: {e}",
+            module="planner",
+            context={"spec_summary": spec.restated_request},
+        ) from e
     plan.user_approved = False
     return plan

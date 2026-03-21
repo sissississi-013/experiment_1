@@ -1,7 +1,9 @@
+import pytest
 from unittest.mock import patch
 from validation_pipeline.schemas.user_input import UserInput
 from validation_pipeline.schemas.spec import FormalSpec
 from validation_pipeline.modules.spec_generator import generate_spec
+from validation_pipeline.errors import LLMError
 
 
 def test_generate_spec_returns_formal_spec():
@@ -27,3 +29,11 @@ def test_generate_spec_returns_formal_spec():
         assert len(spec.content_criteria) >= 1
         assert len(spec.quality_criteria) >= 1
         assert spec.user_confirmed is False
+
+
+def test_spec_generator_raises_llm_error():
+    ui = UserInput(dataset_path="/data", intent="test")
+    with patch("validation_pipeline.modules.spec_generator._call_llm", side_effect=Exception("LLM failed")):
+        with pytest.raises(LLMError) as exc_info:
+            generate_spec(ui)
+    assert exc_info.value.module == "spec_generator"

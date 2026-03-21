@@ -128,3 +128,25 @@ def test_download_dataset_dispatches_url(tmp_path):
     with patch("validation_pipeline.dataset.url.URLDownloader.download", return_value=str(tmp_path / "out")):
         result = download_dataset(plan)
     assert result == str(tmp_path / "out")
+
+
+import pytest
+from validation_pipeline.errors import LLMError, DatasetError
+
+
+def test_resolve_dataset_raises_llm_error():
+    with patch("validation_pipeline.modules.dataset_resolver._call_llm", side_effect=Exception("LLM failed")):
+        with pytest.raises(LLMError) as exc_info:
+            resolve_dataset("test")
+    assert exc_info.value.module == "dataset_resolver"
+
+
+def test_download_dataset_raises_dataset_error_unknown_source():
+    plan = DatasetPlan(
+        source="unknown", url="http://x.com",
+        max_images=10, download_path="/tmp/test",
+    )
+    with pytest.raises(DatasetError) as exc_info:
+        download_dataset(plan)
+    assert exc_info.value.module == "dataset_resolver"
+    assert "unknown" in str(exc_info.value)

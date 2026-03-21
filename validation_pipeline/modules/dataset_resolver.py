@@ -43,7 +43,15 @@ def _call_llm(description: str, config: PipelineConfig | None = None) -> Dataset
 
 
 def resolve_dataset(description: str, config: PipelineConfig | None = None) -> DatasetPlan:
-    return _call_llm(description, config)
+    from validation_pipeline.errors import LLMError
+    try:
+        return _call_llm(description, config)
+    except Exception as e:
+        raise LLMError(
+            f"Dataset resolution failed: {e}",
+            module="dataset_resolver",
+            context={"description": description},
+        ) from e
 
 
 DOWNLOADERS = {
@@ -54,8 +62,20 @@ DOWNLOADERS = {
 
 
 def download_dataset(plan: DatasetPlan) -> str:
+    from validation_pipeline.errors import DatasetError
     factory = DOWNLOADERS.get(plan.source)
     if not factory:
-        raise ValueError(f"Unknown dataset source: {plan.source}. Supported: {list(DOWNLOADERS.keys())}")
+        raise DatasetError(
+            f"Unknown dataset source: {plan.source}. Supported: {list(DOWNLOADERS.keys())}",
+            module="dataset_resolver",
+            context={"source": plan.source, "supported": list(DOWNLOADERS.keys())},
+        )
     downloader = factory()
-    return downloader.download(plan)
+    try:
+        return downloader.download(plan)
+    except Exception as e:
+        raise DatasetError(
+            f"Dataset download failed: {e}",
+            module="dataset_resolver",
+            context={"source": plan.source, "url": plan.url},
+        ) from e
