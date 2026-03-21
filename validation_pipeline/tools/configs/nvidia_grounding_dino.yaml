@@ -1,0 +1,11 @@
+name: nvidia_grounding_dino
+task_type: content_detection
+subtask: object_detection
+tier: 2
+source: api
+wrapper_class: "nvidia_nim_wrapper.NVIDIAGroundingDINOTool"
+default_config:
+  api_key_env: "NVIDIA_NIM_API_KEY"
+  detection_threshold: 0.3
+cost_estimate_ms: 1500
+requires_gpu: false

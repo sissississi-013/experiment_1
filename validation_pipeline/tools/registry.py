@@ -10,6 +10,7 @@ WRAPPER_MAP = {
     "opencv_wrapper.PixelStatsTool": "validation_pipeline.tools.wrappers.opencv_wrapper.PixelStatsTool",
     "roboflow_wrapper.RoboflowObjectDetectionTool": "validation_pipeline.tools.wrappers.roboflow_wrapper.RoboflowObjectDetectionTool",
     "openai_vision_wrapper.GPT4VisionTool": "validation_pipeline.tools.wrappers.openai_vision_wrapper.GPT4VisionTool",
+    "nvidia_nim_wrapper.NVIDIAGroundingDINOTool": "validation_pipeline.tools.wrappers.nvidia_nim_wrapper.NVIDIAGroundingDINOTool",
 }
 
 

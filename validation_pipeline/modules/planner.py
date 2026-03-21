@@ -9,7 +9,7 @@ from validation_pipeline.config import PipelineConfig
 SYSTEM_PROMPT = """You are a validation plan generator. Given a formal specification, calibration results, and available tools, produce a validation plan.
 
 Rules:
-1. For each content criterion, select a detection tool (prefer open-vocabulary like roboflow_object_detection)
+1. For each content criterion, select a detection tool (prefer nvidia_grounding_dino for object detection; fallback to roboflow_object_detection)
 2. For each quality criterion, select a measurement tool matching the dimension
 3. Use calibrated thresholds when available. When calibration shows separability=0.0 or "No calibration data", use sensible defaults: blur threshold 0.3-0.5, exposure threshold 0.3-0.6, content detection threshold 0.5-0.7. NEVER set thresholds to 1.0 — that requires a perfect score and nothing will pass
 4. Order steps by tier: Tier 1 (cheap, CPU) first, Tier 2 (API) second, Tier 3 (VLM) last
