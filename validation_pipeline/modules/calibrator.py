@@ -17,14 +17,48 @@ def calibrate(
     tool_calibrations = {}
     threshold_report = []
 
+    # No exemplars: skip calibration entirely
+    if not good_paths and not bad_paths:
+        return CalibrationResult(
+            tool_calibrations={},
+            exemplar_embeddings=[],
+            threshold_report=[
+                ThresholdExplanation(
+                    dimension=qc.dimension,
+                    threshold=0.5,
+                    explanation="No exemplars provided. Using default thresholds.",
+                )
+                for qc in spec.quality_criteria
+            ],
+        )
+
     for criterion in spec.quality_criteria:
         dim = criterion.dimension
         if dim not in tools:
             continue
         tool = tools[dim]
 
-        good_scores = [tool.execute(Image.open(p).convert("RGB")) for p in good_paths]
-        bad_scores = [tool.execute(Image.open(p).convert("RGB")) for p in bad_paths]
+        good_scores = []
+        for p in good_paths:
+            try:
+                good_scores.append(tool.execute(Image.open(p).convert("RGB")))
+            except Exception:
+                pass
+
+        bad_scores = []
+        for p in bad_paths:
+            try:
+                bad_scores.append(tool.execute(Image.open(p).convert("RGB")))
+            except Exception:
+                pass
+
+        if not good_scores and not bad_scores:
+            from validation_pipeline.errors import CalibrationError
+            raise CalibrationError(
+                f"All exemplar images failed for dimension '{dim}'",
+                module="calibrator",
+                context={"dimension": dim, "good_count": len(good_paths), "bad_count": len(bad_paths)},
+            )
 
         cal = _fit_platt(dim, tool.name, good_scores, bad_scores)
         tool_calibrations[dim] = cal

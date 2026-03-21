@@ -39,3 +39,25 @@ def test_calibrator_produces_result(tmp_path):
     assert "blur" in result.tool_calibrations
     cal = result.tool_calibrations["blur"]
     assert np.mean(cal.raw_good_scores) > np.mean(cal.raw_bad_scores)
+
+
+from validation_pipeline.schemas.spec import FormalSpec, QualityCriterion, QuantityTarget, OutputFormat
+from validation_pipeline.modules.calibrator import calibrate
+
+def test_calibrator_no_exemplars_returns_empty_result():
+    """With no exemplars, calibrator should return clean empty result without numpy warnings."""
+    spec = FormalSpec(
+        restated_request="test", assumptions=[],
+        content_criteria=[],
+        quality_criteria=[QualityCriterion(dimension="blur", description="sharp")],
+        quantity_targets=QuantityTarget(),
+        output_format=OutputFormat(),
+        success_criteria="test",
+    )
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = calibrate(spec, [], [], {})
+    assert result.tool_calibrations == {}
+    assert len(result.threshold_report) == 1
+    assert "No exemplars" in result.threshold_report[0].explanation
