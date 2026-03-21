@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Validation Pipeline — macOS App Direction</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
+    background: #1a1a1a;
+    color: #f5f5f7;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+  }
+  h1 {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .subtitle {
+    font-size: 17px;
+    color: #6e6e73;
+    margin-bottom: 48px;
+    text-align: center;
+  }
+  .question {
+    font-size: 15px;
+    color: #a1a1a6;
+    margin-bottom: 32px;
+    text-align: center;
+  }
+  .mockups { display: flex; flex-direction: column; gap: 48px; max-width: 1100px; width: 100%; }
+
+  .mockup-card {
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+    border: 2px solid transparent;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .mockup-card:hover { transform: scale(1.01); border-color: rgba(0,113,227,0.3); }
+  .mockup-card.selected { border-color: #0071e3; }
+  .mockup-card .label-bar {
+    background: #2c2c2e;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+  }
+  .mockup-card .label-bar .name { font-weight: 600; }
+  .mockup-card .label-bar .desc { color: #6e6e73; font-size: 13px; }
+  .mockup-card .label-bar .badge {
+    background: #0071e3;
+    color: white;
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 980px;
+    display: none;
+  }
+  .mockup-card.selected .label-bar .badge { display: inline-block; }
+
+  /* ===== MOCKUP A: Full macOS window ===== */
+  .mac-window {
+    background: #000;
+    border-radius: 0 0 12px 12px;
+    overflow: hidden;
+  }
+  .mac-titlebar {
+    background: linear-gradient(180deg, #3a3a3c 0%, #2c2c2e 100%);
+    height: 38px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .mac-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .mac-dot.red { background: #ff5f57; }
+  .mac-dot.yellow { background: #febc2e; }
+  .mac-dot.green { background: #28c840; }
+  .mac-titlebar-text {
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    color: #a1a1a6;
+    font-weight: 500;
+  }
+
+  /* App content */
+  .app-body {
+    display: flex;
+    min-height: 480px;
+    background: #000;
+  }
+  .app-sidebar {
+    width: 240px;
+    background: rgba(28,28,30,0.92);
+    backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255,255,255,0.06);
+    padding: 16px 12px;
+  }
+  .app-main {
+    flex: 1;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Sidebar items */
+  .sidebar-section {
+    font-size: 11px;
+    font-weight: 600;
+    color: #6e6e73;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 8px 8px 4px;
+    margin-top: 12px;
+  }
+  .sidebar-section:first-child { margin-top: 0; }
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #f5f5f7;
+    margin-bottom: 2px;
+  }
+  .sidebar-item.active {
+    background: rgba(0,113,227,0.25);
+    color: #fff;
+  }
+  .sidebar-item .icon { font-size: 15px; width: 20px; text-align: center; }
+  .sidebar-item .count {
+    margin-left: auto;
+    font-size: 11px;
+    color: #6e6e73;
+    background: rgba(255,255,255,0.06);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  /* Segmented control */
+  .segmented-control {
+    display: flex;
+    background: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 2px;
+    margin: 16px 24px 0;
+  }
+  .seg-item {
+    flex: 1;
+    text-align: center;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #6e6e73;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+  .seg-item.active {
+    background: rgba(255,255,255,0.1);
+    color: #f5f5f7;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+
+  /* New Run form */
+  .run-form {
+    padding: 24px;
+    flex: 1;
+  }
+  .form-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+  .form-subtitle {
+    font-size: 13px;
+    color: #6e6e73;
+    margin-bottom: 24px;
+  }
+  .form-group {
+    margin-bottom: 16px;
+  }
+  .form-label {
+    font-size: 12px;
+    color: #a1a1a6;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .form-input {
+    width: 100%;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 10px 14px;
+    color: #f5f5f7;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .form-input.large {
+    min-height: 64px;
+    padding: 12px 14px;
+    font-size: 16px;
+    resize: none;
+  }
+  .form-row { display: flex; gap: 12px; }
+  .form-row > * { flex: 1; }
+  .btn-primary {
+    background: #0071e3;
+    color: white;
+    border: none;
+    border-radius: 980px;
+    padding: 10px 24px;
+    font-size: 15px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-primary:hover { background: #0077ed; }
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 24px;
+  }
+
+  /* Image grid in gallery */
+  .image-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    padding: 16px 24px;
+  }
+  .image-cell {
+    aspect-ratio: 1;
+    background: #1c1c1e;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .image-cell .verdict-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .image-cell .verdict-dot.usable { background: #34c759; }
+  .image-cell .verdict-dot.recoverable { background: #ff9f0a; }
+  .image-cell .verdict-dot.unusable { background: #ff3b30; }
+  .image-cell .img-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #3a3a3c;
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 1px;
+    padding: 16px 24px 8px;
+  }
+  .stat-card {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    padding: 16px;
+    text-align: center;
+  }
+  .stat-card:first-child { border-radius: 12px 0 0 12px; }
+  .stat-card:last-child { border-radius: 0 12px 12px 0; }
+  .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  }
+  .stat-value.green { color: #34c759; }
+  .stat-value.orange { color: #ff9f0a; }
+  .stat-value.red { color: #ff3b30; }
+  .stat-label { font-size: 11px; color: #6e6e73; margin-top: 2px; }
+
+  /* Live progress */
+  .progress-section { padding: 0 24px 16px; }
+  .progress-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 12px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+  }
+  .progress-line .module {
+    color: #0071e3;
+    min-width: 120px;
+  }
+  .progress-line .msg { color: #a1a1a6; }
+  .progress-line .time { color: #6e6e73; margin-left: auto; font-size: 11px; }
+  .progress-line.active .msg { color: #f5f5f7; }
+
+  .progress-bar-track {
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    margin: 8px 24px 16px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    width: 60%;
+    background: linear-gradient(90deg, #0071e3, #00c7ff);
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  /* Selections */
+  .select-indicator {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0071e3;
+    color: white;
+    padding: 10px 24px;
+    border-radius: 980px;
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 100;
+  }
+  .select-indicator.visible { opacity: 1; }
+</style>
+<script>
+function selectCard(el) {
+  document.querySelectorAll('.mockup-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  const choice = el.dataset.choice;
+  const indicator = document.getElementById('indicator');
+  indicator.textContent = 'Selected: ' + el.querySelector('.name').textContent;
+  indicator.classList.add('visible');
+
+  // Record event
+  fetch('/.events', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({type: 'click', choice: choice, text: el.querySelector('.name').textContent, timestamp: Date.now()})
+  }).catch(() => {});
+}
+</script>
+</head>
+<body>
+
+<h1>macOS App Design</h1>
+<p class="subtitle">A native-feeling desktop experience for the validation pipeline</p>
+<p class="question">Which view should be the default when you open the app?</p>
+
+<div class="mockups">
+
+  <!-- OPTION A: New Run view -->
+  <div class="mockup-card" data-choice="new-run" onclick="selectCard(this)">
+    <div class="mac-window">
+      <div class="mac-titlebar">
+        <div class="mac-dot red"></div>
+        <div class="mac-dot yellow"></div>
+        <div class="mac-dot green"></div>
+        <div class="mac-titlebar-text">Validation Pipeline</div>
+        <div style="width:44px"></div>
+      </div>
+      <div class="app-body">
+        <div class="app-sidebar">
+          <div class="sidebar-section">Navigation</div>
+          <div class="sidebar-item active">
+            <span class="icon">+</span> New Run
+          </div>
+          <div class="sidebar-item">
+            <span class="icon">&#9776;</span> History
+            <span class="count">2</span>
+          </div>
+          <div class="sidebar-item">
+            <span class="icon">&#9635;</span> Gallery
+          </div>
+
+          <div class="sidebar-section">Recent Runs</div>
+          <div class="sidebar-item">
+            <span class="icon" style="color:#34c759;">&#9679;</span> c8109182
+            <span class="count">1/10</span>
+          </div>
+          <div class="sidebar-item">
+            <span class="icon" style="color:#ff3b30;">&#9679;</span> 8248f7b8
+            <span class="count">failed</span>
+          </div>
+        </div>
+        <div class="app-main">
+          <div class="segmented-control">
+            <div class="seg-item active">New Run</div>
+            <div class="seg-item">Live View</div>
+            <div class="seg-item">Results</div>
+          </div>
+          <div class="run-form">
+            <div class="form-title">Start a Validation Run</div>
+            <div class="form-subtitle">Describe what you're looking for and we'll handle the rest.</div>
+
+            <div class="form-group">
+              <div class="form-label">Intent</div>
+              <div class="form-input large" style="display:flex;align-items:flex-start;color:#a1a1a6;">find 10 sharp, well-exposed images of horses from COCO</div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <div class="form-label">Dataset Source</div>
+                <div class="form-input">COCO val2017</div>
+              </div>
+              <div class="form-group">
+                <div class="form-label">Max Images</div>
+                <div class="form-input">50</div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <div class="form-label">Good Exemplars (optional)</div>
+                <div class="form-input" style="color:#6e6e73;font-size:13px;">Drop images or browse...</div>
+              </div>
+              <div class="form-group">
+                <div class="form-label">Bad Exemplars (optional)</div>
+                <div class="form-input" style="color:#6e6e73;font-size:13px;">Drop images or browse...</div>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn-primary">Start Validation</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="label-bar">
+      <div><span class="name">A. New Run (Default)</span> <span class="desc">— Launch pad for starting validations</span></div>
+      <div class="badge">Selected</div>
+    </div>
+  </div>
+
+  <!-- OPTION B: Live execution view -->
+  <div class="mockup-card" data-choice="live-view" onclick="selectCard(this)">
+    <div class="mac-window">
+      <div class="mac-titlebar">
+        <div class="mac-dot red"></div>
+        <div class="mac-dot yellow"></div>
+        <div class="mac-dot green"></div>
+        <div class="mac-titlebar-text">Validation Pipeline — Run c8109182</div>
+        <div style="width:44px"></div>
+      </div>
+      <div class="app-body">
+        <div class="app-sidebar">
+          <div class="sidebar-section">Navigation</div>
+          <div class="sidebar-item">
+            <span class="icon">+</span> New Run
+          </div>
+          <div class="sidebar-item">
+            <span class="icon">&#9776;</span> History
+            <span class="count">2</span>
+          </div>
+          <div class="sidebar-item">
+            <span class="icon">&#9635;</span> Gallery
+          </div>
+
+          <div class="sidebar-section">Recent Runs</div>
+          <div class="sidebar-item active">
+            <span class="icon" style="color:#00c7ff;">&#8226;</span> c8109182
+            <span class="count" style="color:#0071e3;">live</span>
+          </div>
+          <div class="sidebar-item">
+            <span class="icon" style="color:#ff3b30;">&#9679;</span> 8248f7b8
+            <span class="count">failed</span>
+          </div>
+        </div>
+        <div class="app-main">
+          <div class="segmented-control">
+            <div class="seg-item">New Run</div>
+            <div class="seg-item active">Live View</div>
+            <div class="seg-item">Results</div>
+          </div>
+
+          <div class="stats-bar">
+            <div class="stat-card">
+              <div class="stat-value" style="color:#f5f5f7;">6<span style="color:#6e6e73;font-size:14px;">/10</span></div>
+              <div class="stat-label">Processed</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value green">1</div>
+              <div class="stat-label">Usable</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value orange">4</div>
+              <div class="stat-label">Recoverable</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value red">1</div>
+              <div class="stat-label">Unusable</div>
+            </div>
+          </div>
+
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill"></div>
+          </div>
+
+          <div class="progress-section">
+            <div class="progress-line">
+              <span class="module">[spec_generator]</span>
+              <span class="msg">Completed</span>
+              <span class="time">2.1s</span>
+            </div>
+            <div class="progress-line">
+              <span class="module">[planner]</span>
+              <span class="msg">3 steps, tiers [1, 2]</span>
+              <span class="time">3.7s</span>
+            </div>
+            <div class="progress-line active">
+              <span class="module" style="color:#00c7ff;">[executor]</span>
+              <span class="msg">6/10 — 000000319721.jpg <span style="color:#34c759;">usable</span></span>
+              <span class="time">18.2s</span>
+            </div>
+          </div>
+
+          <div class="image-grid">
+            <div class="image-cell"><div class="verdict-dot recoverable"></div><div class="img-placeholder">016228</div></div>
+            <div class="image-cell"><div class="verdict-dot recoverable"></div><div class="img-placeholder">061171</div></div>
+            <div class="image-cell"><div class="verdict-dot recoverable"></div><div class="img-placeholder">113235</div></div>
+            <div class="image-cell"><div class="verdict-dot recoverable"></div><div class="img-placeholder">121031</div></div>
+            <div class="image-cell"><div class="verdict-dot usable"></div><div class="img-placeholder">319721</div></div>
+            <div class="image-cell"><div class="verdict-dot unusable"></div><div class="img-placeholder">382088</div></div>
+            <div class="image-cell" style="opacity:0.3;"><div class="img-placeholder">...</div></div>
+            <div class="image-cell" style="opacity:0.3;"><div class="img-placeholder">...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="label-bar">
+      <div><span class="name">B. Live Execution View (Default)</span> <span class="desc">— Watch the pipeline process images in real-time</span></div>
+      <div class="badge">Selected</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="select-indicator" id="indicator"></div>
+
+</body>
+</html>
