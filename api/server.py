@@ -48,6 +48,9 @@ app.include_router(images_router)
 from api.routes.export import router as export_router
 app.include_router(export_router)
 
+from api.routes.ws import router as ws_router
+app.include_router(ws_router)
+
 
 @app.get("/api/health")
 async def health():
