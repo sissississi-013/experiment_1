@@ -42,6 +42,9 @@ app.add_middleware(
 from api.routes.runs import router as runs_router
 app.include_router(runs_router)
 
+from api.routes.images import router as images_router
+app.include_router(images_router)
+
 
 @app.get("/api/health")
 async def health():
