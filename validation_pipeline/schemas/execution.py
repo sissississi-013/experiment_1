@@ -22,12 +22,14 @@ class ImageResult(BaseModel):
     verdict_reason: str
     lines_executed: int = 0
     exemplar_similarity: float | None = None
+    errors: list[str] = []
 
 
 class ExecutionSummary(BaseModel):
     usable_count: int = 0
     recoverable_count: int = 0
     unusable_count: int = 0
+    error_count: int = 0
     flag_rates: dict[str, float] = {}
     avg_exemplar_similarity: float | None = None
     early_exit_rate: float = 0.0
