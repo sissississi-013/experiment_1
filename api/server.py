@@ -39,6 +39,10 @@ app.add_middleware(
 )
 
 
+from api.routes.runs import router as runs_router
+app.include_router(runs_router)
+
+
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
