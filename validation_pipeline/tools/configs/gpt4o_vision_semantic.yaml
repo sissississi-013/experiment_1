@@ -1,0 +1,12 @@
+name: gpt4o_vision_semantic
+task_type: semantic_quality
+subtask: vlm_check
+tier: 3
+source: api
+wrapper_class: "openai_vision_wrapper.GPT4VisionTool"
+default_config:
+  api_key_env: "OPENAI_API_KEY"
+  model: "gpt-4o"
+  max_tokens: 100
+cost_estimate_ms: 2000
+requires_gpu: false
