@@ -4,6 +4,7 @@ from validation_pipeline.schemas.spec import (
 )
 from validation_pipeline.schemas.plan import ValidationPlan, PlanStep, SamplingStrategy, CostEstimate
 from validation_pipeline.schemas.execution import ToolResult
+from validation_pipeline.schemas.program import ProgramLine
 
 
 def test_user_input_minimal():
@@ -68,3 +69,44 @@ def test_validation_plan_requires_approval():
         estimated_cost=CostEstimate(),
     )
     assert plan.user_approved is False
+
+
+def test_plan_step_tool_params():
+    step = PlanStep(
+        step_id=1, dimension="content", tool_name="roboflow_object_detection",
+        threshold=0.5, threshold_source="default",
+        hypothesis="Detect horses", tier=2,
+        tool_params={"target_label": "horse"},
+    )
+    assert step.tool_params == {"target_label": "horse"}
+
+
+def test_plan_step_tool_params_default_none():
+    step = PlanStep(
+        step_id=1, dimension="blur", tool_name="laplacian_blur",
+        threshold=0.5, threshold_source="default",
+        hypothesis="Detect blur", tier=1,
+    )
+    assert step.tool_params is None
+
+
+def test_program_line_tool_params():
+    line = ProgramLine(
+        line_number=1, variable_name="content_score",
+        tool_call="roboflow_object_detection(image)",
+        output_type="float", tier=2,
+        tool_params={"target_label": "horse"},
+    )
+    assert line.tool_params == {"target_label": "horse"}
+
+
+def test_user_input_optional_dataset_path():
+    ui = UserInput(intent="find horses", dataset_description="50 horse images from COCO")
+    assert ui.dataset_path is None
+    assert ui.dataset_description == "50 horse images from COCO"
+
+
+def test_user_input_with_dataset_path():
+    ui = UserInput(dataset_path="/data/coco", intent="find horses")
+    assert ui.dataset_path == "/data/coco"
+    assert ui.dataset_description is None

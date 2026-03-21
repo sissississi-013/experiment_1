@@ -12,6 +12,7 @@ class PlanStep(BaseModel):
     fallback_tool: str | None = None
     parallel_group: int = 1
     tier: int = 1
+    tool_params: dict | None = None
 
 
 class SamplingStrategy(BaseModel):

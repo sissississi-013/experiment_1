@@ -8,6 +8,7 @@ class ProgramLine(BaseModel):
     output_type: str
     threshold_check: str | None = None
     tier: int = 1
+    tool_params: dict | None = None
 
 
 class BatchStrategy(BaseModel):
