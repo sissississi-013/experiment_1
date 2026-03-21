@@ -2,6 +2,7 @@ import pytest
 from validation_pipeline.schemas.plan import ValidationPlan, PlanStep, SamplingStrategy, CostEstimate
 from validation_pipeline.schemas.program import CompiledProgram
 from validation_pipeline.modules.compiler import compile_plan
+from validation_pipeline.errors import SpecValidationError
 
 
 def _make_plan(approved=True):
@@ -42,7 +43,7 @@ def test_compile_has_early_exit():
 
 
 def test_compile_rejects_unapproved_plan():
-    with pytest.raises(ValueError, match="not approved"):
+    with pytest.raises(SpecValidationError, match="not approved"):
         compile_plan(_make_plan(approved=False))
 
 
@@ -79,3 +80,16 @@ def test_compile_tool_params_none_for_tier1():
     )
     program = compile_plan(plan)
     assert program.per_image_lines[0].tool_params is None
+
+
+def test_compile_unapproved_plan_raises_spec_validation_error():
+    plan = ValidationPlan(
+        plan_id="p1", spec_summary="test",
+        sampling_strategy=SamplingStrategy(),
+        steps=[], combination_logic="ALL_PASS",
+        estimated_cost=CostEstimate(),
+        user_approved=False,
+    )
+    with pytest.raises(SpecValidationError) as exc_info:
+        compile_plan(plan)
+    assert exc_info.value.module == "compiler"
