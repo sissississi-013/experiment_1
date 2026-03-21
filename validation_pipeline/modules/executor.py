@@ -92,6 +92,9 @@ def _run_program_on_image(
 
         dim_key = line.variable_name.replace("_score", "")
         cal = calibration.tool_calibrations.get(dim_key) if calibration else None
+        # Skip Platt scaling if coefficients are zero (no exemplars were provided)
+        if cal and cal.platt_a == 0.0 and cal.platt_b == 0.0:
+            cal = None
         tr = tool.normalize(raw_output, cal)
 
         threshold = 0.5
