@@ -86,7 +86,8 @@ def _run_program_on_image(
             continue
 
         tool = tools[tool_name]
-        raw_output = tool.execute(image)
+        params = line.tool_params or {}
+        raw_output = tool.execute(image, **params)
         lines_executed += 1
 
         dim_key = line.variable_name.replace("_score", "")
@@ -100,7 +101,7 @@ def _run_program_on_image(
             except ValueError:
                 pass
 
-        passed = raw_output >= threshold
+        passed = tr.score >= threshold
 
         tr.passed = passed
         tr.threshold = threshold
@@ -109,7 +110,7 @@ def _run_program_on_image(
         if not passed:
             all_passed = False
             tier_failed = True
-            reasons.append(f"{tr.dimension}: {raw_output:.2f} failed threshold {threshold}")
+            reasons.append(f"{tr.dimension}: {tr.score:.2f} failed threshold {threshold}")
 
     if all_passed:
         verdict = "usable"
