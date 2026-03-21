@@ -47,7 +47,21 @@ export default function NewRunPage() {
         </div>
         {error && <div className="text-[#FF3B30] text-[13px] bg-[rgba(255,59,48,0.1)] rounded-[12px] p-3">{error}</div>}
         <div className="flex justify-end mt-2">
-          <button type="submit" className="btn-primary px-8" disabled={loading || !intent.trim()}>
+          <button
+            type="submit"
+            disabled={loading || !intent.trim()}
+            style={{
+              background: loading || !intent.trim() ? "rgba(0,113,227,0.5)" : "#0071E3",
+              color: "white",
+              border: "none",
+              borderRadius: "980px",
+              padding: "10px 32px",
+              fontSize: "15px",
+              fontWeight: 500,
+              cursor: loading || !intent.trim() ? "not-allowed" : "pointer",
+              minHeight: "44px",
+            }}
+          >
             {loading ? "Starting..." : "Start Validation"}
           </button>
         </div>
