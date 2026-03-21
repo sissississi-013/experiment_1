@@ -1,0 +1,11 @@
+name: roboflow_object_detection
+task_type: content_detection
+subtask: object_detection
+tier: 2
+source: api
+wrapper_class: "roboflow_wrapper.RoboflowObjectDetectionTool"
+default_config:
+  api_key_env: "ROBOFLOW_API_KEY"
+  model: "coco/1"
+cost_estimate_ms: 500
+requires_gpu: false
