@@ -197,3 +197,56 @@ def test_executor_partial_tool_failure(tmp_path):
     assert len(img.errors) > 0
     assert len(img.tool_results) == 1
     assert img.verdict != "error"
+
+
+from validation_pipeline.event_bus import EventBus
+from validation_pipeline.events import ImageProgress, ImageVerdict, ToolProgress
+
+def test_executor_publishes_progress_events(tmp_path):
+    img_dir = tmp_path / "imgs"
+    img_dir.mkdir()
+    for i in range(3):
+        arr = np.random.randint(0, 255, (50, 50, 3), dtype=np.uint8)
+        Image.fromarray(arr).save(str(img_dir / f"img_{i}.jpg"))
+
+    class SimpleTool(BaseTool):
+        name = "simple_tool"
+        task_type = "image_quality"
+        tier = 1
+        def execute(self, image, **kwargs):
+            return 0.8
+        def normalize(self, raw_output, calibration=None):
+            return ToolResult(
+                tool_name="simple_tool", dimension="blur",
+                score=0.8, passed=True, threshold=0.5, raw_output=0.8,
+            )
+
+    program = CompiledProgram(
+        program_id="p1", source_plan_id="plan1",
+        per_image_lines=[ProgramLine(
+            line_number=1, variable_name="blur_score",
+            tool_call="simple_tool(image)", output_type="float",
+            threshold_check="blur_score >= 0.5", tier=1,
+        )],
+        batch_strategy=BatchStrategy(),
+        tool_imports=["simple_tool"],
+    )
+
+    events = []
+    bus = EventBus()
+    bus.subscribe_all(lambda e: events.append(e))
+
+    tools = {"simple_tool": SimpleTool({})}
+    result = execute_program(program, str(img_dir), tools, event_bus=bus)
+
+    progress_events = [e for e in events if isinstance(e, ImageProgress)]
+    assert len(progress_events) == 3
+    assert progress_events[0].current == 1
+    assert progress_events[2].current == 3
+
+    verdict_events = [e for e in events if isinstance(e, ImageVerdict)]
+    assert len(verdict_events) == 3
+    assert all(v.verdict == "usable" for v in verdict_events)
+
+    tool_events = [e for e in events if isinstance(e, ToolProgress)]
+    assert len(tool_events) == 3
