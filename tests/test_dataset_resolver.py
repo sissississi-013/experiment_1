@@ -91,3 +91,40 @@ def test_coco_downloader(tmp_path):
     from pathlib import Path
     imgs = list(Path(result_path).glob("*.jpg"))
     assert len(imgs) == 2
+
+
+from unittest.mock import patch, MagicMock
+from validation_pipeline.modules.dataset_resolver import resolve_dataset, download_dataset
+
+
+def test_resolve_dataset():
+    mock_plan = DatasetPlan(
+        source="coco", url="http://images.cocodataset.org",
+        subset="val2017", category_filter="horse",
+        max_images=50, download_path="/tmp/coco_horses",
+    )
+    with patch("validation_pipeline.modules.dataset_resolver._call_llm", return_value=mock_plan):
+        plan = resolve_dataset("50 horse images from COCO")
+    assert plan.source == "coco"
+    assert plan.category_filter == "horse"
+
+
+def test_download_dataset_dispatches_coco(tmp_path):
+    plan = DatasetPlan(
+        source="coco", url="http://images.cocodataset.org",
+        subset="val2017", category_filter="horse",
+        max_images=5, download_path=str(tmp_path / "out"),
+    )
+    with patch("validation_pipeline.dataset.coco.COCODownloader.download", return_value=str(tmp_path / "out")):
+        result = download_dataset(plan)
+    assert result == str(tmp_path / "out")
+
+
+def test_download_dataset_dispatches_url(tmp_path):
+    plan = DatasetPlan(
+        source="url", url="https://example.com/imgs.zip",
+        max_images=10, download_path=str(tmp_path / "out"),
+    )
+    with patch("validation_pipeline.dataset.url.URLDownloader.download", return_value=str(tmp_path / "out")):
+        result = download_dataset(plan)
+    assert result == str(tmp_path / "out")
