@@ -66,3 +66,20 @@ def test_gpt4v_retry_on_failure():
          patch("time.sleep"):
         result = tool.execute(img, semantic_question="test")
     assert result["score"] == 0.7
+
+
+import pytest
+from validation_pipeline.errors import ToolError
+
+def test_gpt4v_raises_tool_error_on_exhaustion():
+    from validation_pipeline.tools.wrappers.openai_vision_wrapper import GPT4VisionTool
+    tool = GPT4VisionTool({"api_key_env": "OPENAI_API_KEY", "model": "gpt-4o", "max_tokens": 100})
+    img = Image.fromarray(np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8))
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.side_effect = Exception("always fails")
+    with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}), \
+         patch("instructor.from_openai", return_value=mock_client), \
+         patch("time.sleep"):
+        with pytest.raises(ToolError) as exc_info:
+            tool.execute(img, semantic_question="test")
+    assert exc_info.value.module == "gpt4o_vision_semantic"

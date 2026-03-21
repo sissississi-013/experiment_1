@@ -72,3 +72,18 @@ def test_roboflow_retry_on_failure():
         result = tool.execute(img, target_label="horse")
 
     assert result["best_confidence"] == 0.9
+
+
+import pytest
+from validation_pipeline.errors import ToolError
+
+def test_roboflow_raises_tool_error_on_exhaustion():
+    from validation_pipeline.tools.wrappers.roboflow_wrapper import RoboflowObjectDetectionTool
+    tool = RoboflowObjectDetectionTool({"api_key_env": "ROBOFLOW_API_KEY", "model": "coco/1"})
+    img = Image.fromarray(np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8))
+    with patch("requests.post", side_effect=Exception("always fails")), \
+         patch.dict("os.environ", {"ROBOFLOW_API_KEY": "test-key"}), \
+         patch("time.sleep"):
+        with pytest.raises(ToolError) as exc_info:
+            tool.execute(img, target_label="horse")
+    assert exc_info.value.module == "roboflow_object_detection"
