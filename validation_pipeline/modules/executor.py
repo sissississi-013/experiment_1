@@ -8,6 +8,7 @@ from validation_pipeline.schemas.execution import (
 from validation_pipeline.schemas.calibration import CalibrationResult
 from validation_pipeline.tools.base import BaseTool
 from validation_pipeline.errors import ToolError
+from validation_pipeline.events import ImageProgress, ImageVerdict, ToolProgress
 
 
 def execute_program(
@@ -32,11 +33,16 @@ def execute_program(
     results = []
     failed = 0
 
-    for img_path in image_paths:
+    for i, img_path in enumerate(image_paths):
+        if event_bus:
+            event_bus.publish(ImageProgress(module="executor", current=i+1, total=len(image_paths), image_path=img_path))
         try:
             img = Image.open(img_path).convert("RGB")
-            img_result = _run_program_on_image(program, img, img_path, tools, calibration)
+            img_result = _run_program_on_image(program, img, img_path, tools, calibration, event_bus=event_bus)
             results.append(img_result)
+            if event_bus:
+                scores = {tr.dimension: tr.score for tr in img_result.tool_results}
+                event_bus.publish(ImageVerdict(module="executor", image_id=img_result.image_id, image_path=img_path, verdict=img_result.verdict, scores=scores, errors=img_result.errors))
         except Exception as e:
             failed += 1
             results.append(ImageResult(
@@ -66,6 +72,7 @@ def _run_program_on_image(
     image_path: str,
     tools: dict[str, BaseTool],
     calibration: CalibrationResult | None,
+    event_bus=None,
 ) -> ImageResult:
     tool_results = []
     all_passed = True
@@ -116,6 +123,8 @@ def _run_program_on_image(
 
         tr.passed = passed
         tr.threshold = threshold
+        if event_bus:
+            event_bus.publish(ToolProgress(module="executor", tool_name=tool_name, image_path=image_path, score=tr.score, passed=passed))
         tool_results.append(tr)
 
         if not passed:
