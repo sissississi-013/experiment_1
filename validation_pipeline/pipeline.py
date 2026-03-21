@@ -1,6 +1,8 @@
+from pathlib import Path
 from validation_pipeline.config import PipelineConfig
 from validation_pipeline.schemas.user_input import UserInput
 from validation_pipeline.schemas.report import FinalReport
+import validation_pipeline.modules.dataset_resolver as _dataset_resolver_mod
 from validation_pipeline.modules.spec_generator import generate_spec
 from validation_pipeline.modules.calibrator import calibrate
 from validation_pipeline.modules.planner import generate_plan
@@ -17,6 +19,15 @@ class ValidationPipeline:
         self.registry = ToolRegistry(self.config.tool_configs_dir)
 
     def run(self, user_input: UserInput, auto_approve: bool = False) -> FinalReport:
+        # Module 0: Dataset Resolution (conditional)
+        if not user_input.dataset_path or not Path(user_input.dataset_path).exists():
+            if user_input.dataset_description:
+                dataset_plan = _dataset_resolver_mod.resolve_dataset(user_input.dataset_description, self.config)
+                local_path = _dataset_resolver_mod.download_dataset(dataset_plan)
+                user_input = user_input.model_copy(update={"dataset_path": local_path})
+            elif not user_input.dataset_path:
+                raise ValueError("Either dataset_path or dataset_description must be provided")
+
         # Module 1: Spec Generator
         spec = generate_spec(user_input, self.config)
         if auto_approve:
