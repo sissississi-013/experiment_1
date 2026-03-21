@@ -41,20 +41,6 @@ class RunStore:
         resp.raise_for_status()
         return resp.json()
 
-    def _execute_batch(self, statements: list[dict[str, Any]]) -> list[dict]:
-        """Execute multiple statements in a single transaction."""
-        resp = requests.post(
-            self.sql_url,
-            headers={
-                "Content-Type": "application/json",
-                "Neon-Connection-String": self.connection_string,
-            },
-            json=statements,
-            timeout=self.timeout,
-        )
-        resp.raise_for_status()
-        return resp.json()
-
     def _rows_to_dicts(self, result: dict) -> list[dict[str, Any]]:
         """Convert Neon HTTP response to list of dicts."""
         fields = [f["name"] for f in result.get("fields", [])]
@@ -72,53 +58,31 @@ class RunStore:
 
     def initialize_schema(self) -> None:
         """Create tables if they do not already exist."""
-        self._execute_batch([
-            {"query": """
-                CREATE TABLE IF NOT EXISTS runs (
-                    id TEXT PRIMARY KEY,
-                    intent TEXT NOT NULL,
-                    dataset_path TEXT,
-                    dataset_description TEXT,
-                    status TEXT NOT NULL DEFAULT 'running',
-                    total_images INTEGER,
-                    usable_count INTEGER,
-                    recoverable_count INTEGER,
-                    unusable_count INTEGER,
-                    error_count INTEGER DEFAULT 0,
-                    overall_score FLOAT,
-                    report_json JSONB,
-                    config_json JSONB,
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    completed_at TIMESTAMPTZ
-                )
-            """},
-            {"query": """
-                CREATE TABLE IF NOT EXISTS events (
-                    id SERIAL PRIMARY KEY,
-                    run_id TEXT REFERENCES runs(id),
-                    event_type TEXT NOT NULL,
-                    module TEXT NOT NULL,
-                    payload JSONB NOT NULL,
-                    created_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            """},
-            {"query": """
-                CREATE TABLE IF NOT EXISTS image_results (
-                    id SERIAL PRIMARY KEY,
-                    run_id TEXT REFERENCES runs(id),
-                    image_id TEXT NOT NULL,
-                    image_path TEXT NOT NULL,
-                    verdict TEXT NOT NULL,
-                    scores JSONB DEFAULT '{}',
-                    errors JSONB DEFAULT '[]',
-                    flags JSONB DEFAULT '[]',
-                    created_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            """},
-            {"query": "CREATE INDEX IF NOT EXISTS idx_events_run_id ON events(run_id)"},
-            {"query": "CREATE INDEX IF NOT EXISTS idx_image_results_run_id ON image_results(run_id)"},
-            {"query": "CREATE INDEX IF NOT EXISTS idx_image_results_verdict ON image_results(verdict)"},
-        ])
+        for sql in [
+            """CREATE TABLE IF NOT EXISTS runs (
+                id TEXT PRIMARY KEY, intent TEXT NOT NULL, dataset_path TEXT,
+                dataset_description TEXT, status TEXT NOT NULL DEFAULT 'running',
+                total_images INTEGER, usable_count INTEGER, recoverable_count INTEGER,
+                unusable_count INTEGER, error_count INTEGER DEFAULT 0, overall_score FLOAT,
+                report_json JSONB, config_json JSONB,
+                created_at TIMESTAMPTZ DEFAULT NOW(), completed_at TIMESTAMPTZ
+            )""",
+            """CREATE TABLE IF NOT EXISTS events (
+                id SERIAL PRIMARY KEY, run_id TEXT REFERENCES runs(id),
+                event_type TEXT NOT NULL, module TEXT NOT NULL, payload JSONB NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )""",
+            """CREATE TABLE IF NOT EXISTS image_results (
+                id SERIAL PRIMARY KEY, run_id TEXT REFERENCES runs(id),
+                image_id TEXT NOT NULL, image_path TEXT NOT NULL, verdict TEXT NOT NULL,
+                scores JSONB DEFAULT '{}', errors JSONB DEFAULT '[]', flags JSONB DEFAULT '[]',
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )""",
+            "CREATE INDEX IF NOT EXISTS idx_events_run_id ON events(run_id)",
+            "CREATE INDEX IF NOT EXISTS idx_image_results_run_id ON image_results(run_id)",
+            "CREATE INDEX IF NOT EXISTS idx_image_results_verdict ON image_results(verdict)",
+        ]:
+            self._execute(sql)
 
     # ------------------------------------------------------------------
     # Run lifecycle
@@ -175,19 +139,16 @@ class RunStore:
     # ------------------------------------------------------------------
 
     def store_image_results(self, run_id: str, results: list[ImageReport]) -> None:
-        statements = []
         for img in results:
-            statements.append({
-                "query": "INSERT INTO image_results (run_id, image_id, image_path, verdict, scores, errors, flags) "
-                         "VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                "params": [
+            self._execute(
+                "INSERT INTO image_results (run_id, image_id, image_path, verdict, scores, errors, flags) "
+                "VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                [
                     run_id, img.image_id, img.image_path, img.verdict,
                     json.dumps(img.scores), json.dumps([]),
                     json.dumps(img.flags),
                 ],
-            })
-        if statements:
-            self._execute_batch(statements)
+            )
 
     # ------------------------------------------------------------------
     # Queries
