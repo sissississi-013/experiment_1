@@ -42,7 +42,7 @@ class CalibrationError(PipelineError):
     """Not enough exemplars, degenerate data, failed Platt fitting."""
     pass
 
-class ValidationError(PipelineError):
+class SpecValidationError(PipelineError):
     """Spec/plan validation failures — missing fields, invalid values."""
     pass
 ```
@@ -96,11 +96,15 @@ def retry_with_policy(
     """
 ```
 
-This replaces the duplicated `for attempt in range(self.max_retries)` loops in every tool wrapper and LLM caller.
+This replaces the duplicated `for attempt in range(self.max_retries)` loops in tool wrappers. The `fn` parameter is a zero-arg callable — callers use closures/lambdas to capture image data and params (e.g., `lambda: self._run_inference(b64_image, target_label)`).
 
 **Transient vs permanent errors:**
 - Transient (retry): `TimeoutError`, `ConnectionError`, HTTP 429, HTTP 5xx
-- Permanent (raise immediately): HTTP 401/403 (auth), HTTP 400 (bad request), `instructor` validation errors
+- Permanent (raise immediately): HTTP 401/403 (auth), HTTP 400 (bad request)
+
+**Interaction with `instructor` retries:** The LLM-calling modules (spec_generator, planner, dataset_resolver) already use `instructor`'s built-in `max_retries` for Pydantic validation errors (malformed structured output). `retry_with_policy` is NOT applied to these — `instructor` handles its own retry logic. Instead, the LLM modules wrap the `instructor` call in a try/except and raise `LLMError` on final failure. `retry_with_policy` is only for the tool wrappers (Roboflow, NIM, GPT-4o Vision) which do raw HTTP calls.
+
+**Deprecating `PipelineConfig.max_retries`:** The existing `max_retries: int = 3` on `PipelineConfig` continues to be used for `instructor` calls. `RetryPolicy` governs tool wrapper retries. These are separate concerns.
 
 ---
 
@@ -124,6 +128,12 @@ class ImageResult(BaseModel):
 
 New verdict value `"error"` — means the image couldn't be properly evaluated due to tool/API failures (distinct from "unusable" which means the image was evaluated and failed).
 
+### 3.1.1 ExecutionSummary schema change
+
+**Modify**: `validation_pipeline/schemas/execution.py`
+
+Add `error_count: int = 0` to `ExecutionSummary`. Update `_compute_summary()` in `executor.py` to count `verdict="error"` images and populate `tool_error_rate` from per-image error data.
+
 ### 3.2 Executor
 
 **Modify**: `validation_pipeline/modules/executor.py`
@@ -141,24 +151,23 @@ New behavior:
 
 **Modify**: `validation_pipeline/modules/dataset_resolver.py`
 
-- `_call_llm` failure → `LLMError(module="dataset_resolver", context={"description": ..., "retry_count": ...})`
+- `_call_llm` failure → wrap `instructor` call in try/except, raise `LLMError(module="dataset_resolver", context={"description": ...})` (instructor handles its own retries internally)
 - Download failure → `DatasetError(module="dataset_resolver", context={"url": ..., "http_status": ..., "source": ...})`
 - Category not found → `DatasetError(module="dataset_resolver", context={"category": ..., "available": [...]})`
-- Uses `retry_with_policy` for the LLM call
+- Unknown dataset source → `DatasetError(module="dataset_resolver", context={"source": ..., "supported": [...]})`
+- Missing annotation file → `DatasetError(module="dataset_resolver", context={"subset": ..., "cache_dir": ...})`
 
 ### 3.4 Spec Generator
 
 **Modify**: `validation_pipeline/modules/spec_generator.py`
 
-- `_call_llm` failure → `LLMError(module="spec_generator", context={"intent": ..., "retry_count": ...})`
-- Uses `retry_with_policy` for the LLM call
+- `_call_llm` failure → wrap `instructor` call in try/except, raise `LLMError(module="spec_generator", context={"intent": ...})` (instructor handles its own retries internally)
 
 ### 3.5 Planner
 
 **Modify**: `validation_pipeline/modules/planner.py`
 
-- `_call_llm` failure → `LLMError(module="planner", context={"spec_summary": ..., "retry_count": ...})`
-- Uses `retry_with_policy` for the LLM call
+- `_call_llm` failure → wrap `instructor` call in try/except, raise `LLMError(module="planner", context={"spec_summary": ...})` (instructor handles its own retries internally)
 
 ### 3.6 Calibrator
 
@@ -166,7 +175,7 @@ New behavior:
 
 - No exemplars provided (empty lists) → skip calibration gracefully, return empty `CalibrationResult` with a clear `threshold_report` explaining why (no longer produces numpy warnings)
 - Degenerate data (all same score, <2 classes) → already handled, but now wraps in `CalibrationError` if the result is completely unusable
-- Tool execution failure during calibration → `ToolError` with image path and tool name
+- Tool execution failure on a single image during calibration → skip that image, collect the error, continue with remaining images. If ALL images fail → raise `CalibrationError(module="calibrator", context={"dimension": ..., "failed_count": ..., "total_count": ...})`
 
 ### 3.7 Tool Wrappers
 
@@ -181,9 +190,31 @@ New behavior:
 - The executor catches this `ToolError` and records it per-image
 - No more silent 0.0 scores on API failure
 
-Tier 1 tools (OpenCV) don't change — they don't have retry logic and failures are genuine (bad image data).
+Tier 1 tools (OpenCV) don't change — they don't have retry logic and failures are genuine (bad image data). If a Tier 1 tool raises an unexpected exception (e.g., corrupt image causing numpy error), the executor catches it as a generic `Exception`, wraps it in `ToolError`, and records it per-image.
 
-### 3.8 Pipeline Orchestrator
+### 3.8 Compiler
+
+**Modify**: `validation_pipeline/modules/compiler.py`
+
+- Currently raises `ValueError` if plan is not approved. Change to `SpecValidationError(module="compiler", context={"plan_id": ...})`
+- Malformed step data → `SpecValidationError` with step details
+
+### 3.9 Supervisor
+
+**Modify**: `validation_pipeline/modules/supervisor.py`
+
+- Now receives `error_count` from `ExecutionSummary` and factors it into anomaly detection
+- High error rate (>10% of images with `verdict="error"`) → blocker anomaly with `"likely_cause": "Tool API failures"`
+- Populates `tool_error_rate` from per-image error data passed through from executor
+
+### 3.10 Reporter
+
+**Modify**: `validation_pipeline/modules/reporter.py`
+
+- Includes error images in `per_image_results` with `verdict="error"` and their `errors` list
+- `DatasetStats` now tracks error count alongside usable/recoverable/unusable
+
+### 3.11 Pipeline Orchestrator
 
 **Modify**: `validation_pipeline/pipeline.py`
 
@@ -229,7 +260,10 @@ validation_pipeline/modules/calibrator.py            # Typed exceptions, clean n
 validation_pipeline/tools/wrappers/nvidia_nim_wrapper.py    # Use retry_with_policy, raise ToolError
 validation_pipeline/tools/wrappers/roboflow_wrapper.py      # Use retry_with_policy, raise ToolError
 validation_pipeline/tools/wrappers/openai_vision_wrapper.py # Use retry_with_policy, raise ToolError
-validation_pipeline/pipeline.py                      # Per-step error handling
+validation_pipeline/modules/compiler.py               # SpecValidationError
+validation_pipeline/modules/supervisor.py             # Error rate anomaly detection
+validation_pipeline/modules/reporter.py               # Error images in report
+validation_pipeline/pipeline.py                       # Per-step error handling
 ```
 
 ---
@@ -239,5 +273,5 @@ validation_pipeline/pipeline.py                      # Per-step error handling
 - No logging system (comes in Sprint A: Progress & Event Streaming)
 - No database persistence (comes in Sprint C: Persistence)
 - No new CLI flags or UI changes
-- No changes to tool registry, YAML configs, or report schemas (beyond ImageResult.errors)
-- Tier 1 OpenCV tools unchanged (no API, no retry needed)
+- No changes to tool registry or YAML configs
+- Tier 1 OpenCV tool code unchanged (no API, no retry needed — but executor now wraps their exceptions too)
