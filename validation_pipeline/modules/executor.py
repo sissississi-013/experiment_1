@@ -16,6 +16,7 @@ def execute_program(
     tools: dict[str, BaseTool],
     calibration: CalibrationResult | None = None,
     sample_paths: list[str] | None = None,
+    event_bus=None,
 ) -> ExecutionResult:
     start_time = time.time()
 
