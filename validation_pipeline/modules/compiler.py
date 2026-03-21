@@ -32,6 +32,7 @@ def compile_plan(plan: ValidationPlan) -> CompiledProgram:
             output_type="float",
             threshold_check=threshold_check,
             tier=step.tier,
+            tool_params=step.tool_params,
         ))
 
         if step.tool_name not in tool_imports:

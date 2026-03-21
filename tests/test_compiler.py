@@ -44,3 +44,38 @@ def test_compile_has_early_exit():
 def test_compile_rejects_unapproved_plan():
     with pytest.raises(ValueError, match="not approved"):
         compile_plan(_make_plan(approved=False))
+
+
+def test_compile_preserves_tool_params():
+    plan = ValidationPlan(
+        plan_id="p1", spec_summary="test",
+        sampling_strategy=SamplingStrategy(),
+        steps=[PlanStep(
+            step_id=1, dimension="content", tool_name="roboflow_object_detection",
+            threshold=0.5, threshold_source="default",
+            hypothesis="Detect horse", tier=2,
+            tool_params={"target_label": "horse"},
+        )],
+        combination_logic="ALL_PASS",
+        estimated_cost=CostEstimate(),
+        user_approved=True,
+    )
+    program = compile_plan(plan)
+    assert program.per_image_lines[0].tool_params == {"target_label": "horse"}
+
+
+def test_compile_tool_params_none_for_tier1():
+    plan = ValidationPlan(
+        plan_id="p1", spec_summary="test",
+        sampling_strategy=SamplingStrategy(),
+        steps=[PlanStep(
+            step_id=1, dimension="blur", tool_name="laplacian_blur",
+            threshold=100.0, threshold_source="default",
+            hypothesis="Detect blur", tier=1,
+        )],
+        combination_logic="ALL_PASS",
+        estimated_cost=CostEstimate(),
+        user_approved=True,
+    )
+    program = compile_plan(plan)
+    assert program.per_image_lines[0].tool_params is None
