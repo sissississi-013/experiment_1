@@ -1,5 +1,6 @@
 from pathlib import Path
 from validation_pipeline.config import PipelineConfig
+from validation_pipeline.errors import DatasetError, SpecValidationError
 from validation_pipeline.schemas.user_input import UserInput
 from validation_pipeline.schemas.report import FinalReport
 import validation_pipeline.modules.dataset_resolver as _dataset_resolver_mod
@@ -26,14 +27,20 @@ class ValidationPipeline:
                 local_path = _dataset_resolver_mod.download_dataset(dataset_plan)
                 user_input = user_input.model_copy(update={"dataset_path": local_path})
             elif not user_input.dataset_path:
-                raise ValueError("Either dataset_path or dataset_description must be provided")
+                raise DatasetError(
+                    "Either dataset_path or dataset_description must be provided",
+                    module="pipeline",
+                )
 
         # Module 1: Spec Generator
         spec = generate_spec(user_input, self.config)
         if auto_approve:
             spec.user_confirmed = True
         if not spec.user_confirmed:
-            raise ValueError("Spec must be confirmed by user before proceeding")
+            raise SpecValidationError(
+                "Spec must be confirmed by user before proceeding",
+                module="pipeline",
+            )
 
         # Module 2: Calibrator
         dim_to_tool = {}
@@ -70,7 +77,10 @@ class ValidationPipeline:
         plan.steps = [s for s in plan.steps if s.tool_name in loadable]
 
         if not plan.user_approved:
-            raise ValueError("Plan must be approved by user before proceeding")
+            raise SpecValidationError(
+                "Plan must be approved by user before proceeding",
+                module="pipeline",
+            )
 
         # Module 4: Compiler
         program = compile_plan(plan)
@@ -84,7 +94,8 @@ class ValidationPipeline:
             except KeyError:
                 unavailable.append(tool_name)
         if unavailable:
-            print(f"WARNING: Tools not available (skipping): {unavailable}")
+            import sys
+            print(f"WARNING: Tools not available (skipping): {unavailable}", file=sys.stderr)
 
         result = execute_program(program, user_input.dataset_path, tools, cal_result)
 
