@@ -47,6 +47,14 @@ def _call_llm(user_input: UserInput, config: PipelineConfig | None = None) -> Fo
 
 
 def generate_spec(user_input: UserInput, config: PipelineConfig | None = None) -> FormalSpec:
-    spec = _call_llm(user_input, config)
+    from validation_pipeline.errors import LLMError
+    try:
+        spec = _call_llm(user_input, config)
+    except Exception as e:
+        raise LLMError(
+            f"Spec generation failed: {e}",
+            module="spec_generator",
+            context={"intent": user_input.intent},
+        ) from e
     spec.user_confirmed = False
     return spec
