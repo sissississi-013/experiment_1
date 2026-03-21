@@ -1,6 +1,5 @@
 import io
 import os
-import time
 import base64
 import requests
 from typing import Any
@@ -8,6 +7,9 @@ from PIL import Image
 from validation_pipeline.tools.base import BaseTool
 from validation_pipeline.schemas.execution import ToolResult
 from validation_pipeline.schemas.calibration import ToolCalibration
+from validation_pipeline.retry import retry_with_policy
+from validation_pipeline.config import RetryPolicy
+from validation_pipeline.errors import ToolError
 
 
 INFERENCE_URL = "https://ai.api.nvidia.com/v1/cv/nvidia/nv-grounding-dino"
@@ -23,7 +25,6 @@ class NVIDIAGroundingDINOTool(BaseTool):
     def __init__(self, config: dict = {}):
         super().__init__(config)
         self.api_key_env = config.get("api_key_env", "NVIDIA_NIM_API_KEY")
-        self.max_retries = 3
         self.timeout = 60
         self.detection_threshold = config.get("detection_threshold", 0.3)
 
@@ -91,15 +92,18 @@ class NVIDIAGroundingDINOTool(BaseTool):
         target_label = kwargs.get("target_label", "")
         b64_image = self._encode_image(image)
 
-        for attempt in range(self.max_retries):
-            try:
-                result = self._run_inference(b64_image, target_label)
-                result["target_label"] = target_label
-                return result
-            except Exception:
-                if attempt == self.max_retries - 1:
-                    return {"best_confidence": 0.0, "detections": [], "target_label": target_label}
-                time.sleep(2 ** attempt)
+        def _call():
+            result = self._run_inference(b64_image, target_label)
+            result["target_label"] = target_label
+            return result
+
+        return retry_with_policy(
+            fn=_call,
+            policy=RetryPolicy(),
+            error_cls=ToolError,
+            module=self.name,
+            context={"target_label": target_label},
+        )
 
     def normalize(self, raw_output: Any, calibration: ToolCalibration | None = None) -> ToolResult:
         score = raw_output["best_confidence"]

@@ -124,3 +124,17 @@ def test_nvidia_dino_retry_on_failure():
         result = tool.execute(img, target_label="horse")
 
     assert result["best_confidence"] == 0.75
+
+
+import pytest
+from validation_pipeline.errors import ToolError
+
+def test_nvidia_dino_raises_tool_error_on_exhaustion():
+    tool = _make_tool()
+    img = Image.fromarray(np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8))
+    with patch("requests.post", side_effect=Exception("always fails")), \
+         patch.dict("os.environ", {"NVIDIA_NIM_API_KEY": "nvapi-test"}), \
+         patch("time.sleep"):
+        with pytest.raises(ToolError) as exc_info:
+            tool.execute(img, target_label="horse")
+    assert exc_info.value.module == "nvidia_grounding_dino"
