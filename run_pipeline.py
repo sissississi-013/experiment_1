@@ -64,6 +64,32 @@ def run(intent: str, dataset_path: str | None = None, dataset_description: str |
     )
     bus = EventBus()
     bus.subscribe_all(cli_subscriber)
+
+    # Optional persistence to Neon
+    store = None
+    run_id = None
+    db_url = os.environ.get("NEON_DATABASE_URL", "")
+    if db_url:
+        try:
+            from validation_pipeline.persistence.run_store import RunStore
+            from validation_pipeline.persistence.subscriber import PersistenceSubscriber
+            import uuid
+            store = RunStore(db_url)
+            run_id = str(uuid.uuid4())[:8]
+            store.create_run(
+                run_id=run_id,
+                intent=intent,
+                config_json={"llm_model": "gpt-4o"},
+                dataset_path=dataset_path,
+                dataset_description=dataset_description,
+            )
+            persistence = PersistenceSubscriber(store, run_id)
+            bus.subscribe_all(persistence)
+            print(f"  [persistence] Connected to Neon (run_id={run_id})")
+        except Exception as e:
+            print(f"  [persistence] WARNING: Could not connect to database: {e}")
+            store = None
+
     pipeline = ValidationPipeline(config, event_bus=bus)
 
     user_input = UserInput(
@@ -79,7 +105,16 @@ def run(intent: str, dataset_path: str | None = None, dataset_description: str |
     if dataset_description:
         print(f"Dataset description: {dataset_description}")
 
-    report = pipeline.run(user_input, auto_approve=True)
+    try:
+        report = pipeline.run(user_input, auto_approve=True)
+        if store and run_id:
+            store.complete_run(run_id, report)
+            store.store_image_results(run_id, report.per_image_results)
+            print(f"\n  [persistence] Run {run_id} saved to database")
+    except Exception as e:
+        if store and run_id:
+            store.fail_run(run_id, str(e))
+        raise
 
     # Dataset stats
     print_header("DATASET STATS")
