@@ -1,4 +1,12 @@
-from validation_pipeline.tools.registry import ToolRegistry
+from validation_pipeline.tools.registry import ToolRegistry, WRAPPER_MAP
+
+
+def test_wrapper_map_contains_roboflow():
+    assert "roboflow_wrapper.RoboflowObjectDetectionTool" in WRAPPER_MAP
+
+
+def test_wrapper_map_contains_openai_vision():
+    assert "openai_vision_wrapper.GPT4VisionTool" in WRAPPER_MAP
 
 
 def test_registry_loads_configs(tmp_path):

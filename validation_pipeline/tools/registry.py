@@ -8,6 +8,8 @@ WRAPPER_MAP = {
     "opencv_wrapper.LaplacianBlurTool": "validation_pipeline.tools.wrappers.opencv_wrapper.LaplacianBlurTool",
     "opencv_wrapper.HistogramExposureTool": "validation_pipeline.tools.wrappers.opencv_wrapper.HistogramExposureTool",
     "opencv_wrapper.PixelStatsTool": "validation_pipeline.tools.wrappers.opencv_wrapper.PixelStatsTool",
+    "roboflow_wrapper.RoboflowObjectDetectionTool": "validation_pipeline.tools.wrappers.roboflow_wrapper.RoboflowObjectDetectionTool",
+    "openai_vision_wrapper.GPT4VisionTool": "validation_pipeline.tools.wrappers.openai_vision_wrapper.GPT4VisionTool",
 }
 
 
