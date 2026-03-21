@@ -1,19 +1,70 @@
-"""RunStore: Neon Postgres persistence layer for pipeline runs, events, and image results."""
+"""RunStore: Neon Postgres persistence layer using HTTP /sql endpoint.
+
+Uses Neon's serverless HTTP API (port 443) instead of psycopg2 (port 5432),
+so it works on networks that block Postgres ports.
+"""
 
 import json
 from typing import Any
 
-import psycopg2
+import requests
 
 from validation_pipeline.events import PipelineEvent
 from validation_pipeline.schemas.report import FinalReport, ImageReport
 
 
 class RunStore:
-    """Persist pipeline runs, events, and per-image results to a Postgres database."""
+    """Persist pipeline runs, events, and per-image results to Neon Postgres via HTTP."""
 
-    def __init__(self, dsn: str) -> None:
-        self.conn = psycopg2.connect(dsn)
+    def __init__(self, connection_string: str) -> None:
+        # Parse the connection string to extract the host for the /sql endpoint
+        # Format: postgresql://user:pass@host/db?params
+        self.connection_string = connection_string
+        host = connection_string.split("@")[1].split("/")[0]
+        self.sql_url = f"https://{host}/sql"
+        self.timeout = 15
+
+    def _execute(self, query: str, params: list[Any] | None = None) -> dict:
+        """Execute a single SQL query via Neon HTTP endpoint."""
+        body: dict[str, Any] = {"query": query}
+        if params:
+            body["params"] = params
+        resp = requests.post(
+            self.sql_url,
+            headers={
+                "Content-Type": "application/json",
+                "Neon-Connection-String": self.connection_string,
+            },
+            json=body,
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def _execute_batch(self, statements: list[dict[str, Any]]) -> list[dict]:
+        """Execute multiple statements in a single transaction."""
+        resp = requests.post(
+            self.sql_url,
+            headers={
+                "Content-Type": "application/json",
+                "Neon-Connection-String": self.connection_string,
+            },
+            json=statements,
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def _rows_to_dicts(self, result: dict) -> list[dict[str, Any]]:
+        """Convert Neon HTTP response to list of dicts."""
+        fields = [f["name"] for f in result.get("fields", [])]
+        rows = result.get("rows", [])
+        if not fields or not rows:
+            return []
+        # Rows can be dicts (default) or arrays
+        if rows and isinstance(rows[0], dict):
+            return rows
+        return [dict(zip(fields, row)) for row in rows]
 
     # ------------------------------------------------------------------
     # Schema initialisation
@@ -21,255 +72,179 @@ class RunStore:
 
     def initialize_schema(self) -> None:
         """Create tables if they do not already exist."""
-        with self.conn.cursor() as cur:
-            cur.execute("""
+        self._execute_batch([
+            {"query": """
                 CREATE TABLE IF NOT EXISTS runs (
                     id TEXT PRIMARY KEY,
-                    intent TEXT,
-                    status TEXT NOT NULL DEFAULT 'running',
-                    config_json JSONB,
+                    intent TEXT NOT NULL,
                     dataset_path TEXT,
-                    report_json JSONB,
-                    error_message TEXT,
+                    dataset_description TEXT,
+                    status TEXT NOT NULL DEFAULT 'running',
                     total_images INTEGER,
                     usable_count INTEGER,
+                    recoverable_count INTEGER,
+                    unusable_count INTEGER,
+                    error_count INTEGER DEFAULT 0,
                     overall_score FLOAT,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    report_json JSONB,
+                    config_json JSONB,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    completed_at TIMESTAMPTZ
                 )
-            """)
-            cur.execute("""
+            """},
+            {"query": """
                 CREATE TABLE IF NOT EXISTS events (
-                    id BIGSERIAL PRIMARY KEY,
-                    run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+                    id SERIAL PRIMARY KEY,
+                    run_id TEXT REFERENCES runs(id),
                     event_type TEXT NOT NULL,
-                    module TEXT,
-                    payload JSONB,
-                    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    module TEXT NOT NULL,
+                    payload JSONB NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
                 )
-            """)
-            cur.execute("""
+            """},
+            {"query": """
                 CREATE TABLE IF NOT EXISTS image_results (
-                    id BIGSERIAL PRIMARY KEY,
-                    run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+                    id SERIAL PRIMARY KEY,
+                    run_id TEXT REFERENCES runs(id),
                     image_id TEXT NOT NULL,
-                    image_path TEXT,
-                    verdict TEXT,
-                    scores JSONB,
-                    flags JSONB,
-                    recovery_suggestion TEXT,
-                    explanation TEXT
+                    image_path TEXT NOT NULL,
+                    verdict TEXT NOT NULL,
+                    scores JSONB DEFAULT '{}',
+                    errors JSONB DEFAULT '[]',
+                    flags JSONB DEFAULT '[]',
+                    created_at TIMESTAMPTZ DEFAULT NOW()
                 )
-            """)
-        self.conn.commit()
+            """},
+            {"query": "CREATE INDEX IF NOT EXISTS idx_events_run_id ON events(run_id)"},
+            {"query": "CREATE INDEX IF NOT EXISTS idx_image_results_run_id ON image_results(run_id)"},
+            {"query": "CREATE INDEX IF NOT EXISTS idx_image_results_verdict ON image_results(verdict)"},
+        ])
 
     # ------------------------------------------------------------------
     # Run lifecycle
     # ------------------------------------------------------------------
 
-    def create_run(
-        self,
-        run_id: str,
-        intent: str,
-        config_json: dict,
-        dataset_path: str,
-    ) -> None:
-        """Insert a new run row with status 'running'."""
-        with self.conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO runs (id, intent, status, config_json, dataset_path)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (run_id, intent, "running", json.dumps(config_json), dataset_path),
-            )
-        self.conn.commit()
+    def create_run(self, run_id: str, intent: str, config_json: dict,
+                   dataset_path: str | None = None,
+                   dataset_description: str | None = None) -> str:
+        self._execute(
+            "INSERT INTO runs (id, intent, dataset_path, dataset_description, status, config_json) "
+            "VALUES ($1, $2, $3, $4, $5, $6)",
+            [run_id, intent, dataset_path, dataset_description, "running", json.dumps(config_json)],
+        )
+        return run_id
 
     def complete_run(self, run_id: str, report: FinalReport) -> None:
-        """Mark a run as completed and store the final report."""
-        stats = report.dataset_stats
-        score = report.curation_score.overall_score
-        with self.conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE runs
-                SET status = %s,
-                    report_json = %s,
-                    total_images = %s,
-                    usable_count = %s,
-                    overall_score = %s,
-                    updated_at = NOW()
-                WHERE id = %s
-                """,
-                (
-                    "completed",
-                    report.model_dump_json(),
-                    stats.total_images,
-                    stats.usable,
-                    score,
-                    run_id,
-                ),
-            )
-        self.conn.commit()
+        self._execute(
+            "UPDATE runs SET status = $1, total_images = $2, usable_count = $3, "
+            "recoverable_count = $4, unusable_count = $5, error_count = $6, "
+            "overall_score = $7, report_json = $8, completed_at = NOW() WHERE id = $9",
+            [
+                "completed",
+                report.dataset_stats.total_images,
+                report.dataset_stats.usable,
+                report.dataset_stats.recoverable,
+                report.dataset_stats.unusable,
+                report.dataset_stats.error_count,
+                report.curation_score.overall_score,
+                report.model_dump_json(),
+                run_id,
+            ],
+        )
 
-    def fail_run(self, run_id: str, error_message: str) -> None:
-        """Mark a run as failed and record the error message."""
-        with self.conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE runs
-                SET status = %s,
-                    error_message = %s,
-                    updated_at = NOW()
-                WHERE id = %s
-                """,
-                ("failed", error_message, run_id),
-            )
-        self.conn.commit()
+    def fail_run(self, run_id: str, error: str) -> None:
+        self._execute(
+            "UPDATE runs SET status = $1, completed_at = NOW(), "
+            "report_json = $2 WHERE id = $3",
+            ["failed", json.dumps({"error": error}), run_id],
+        )
 
     # ------------------------------------------------------------------
     # Events
     # ------------------------------------------------------------------
 
     def store_event(self, run_id: str, event: PipelineEvent) -> None:
-        """Persist a pipeline event row."""
-        event_type = type(event).__name__
-        payload = event.model_dump_json()
-        with self.conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO events (run_id, event_type, module, payload)
-                VALUES (%s, %s, %s, %s)
-                """,
-                (run_id, event_type, event.module, payload),
-            )
-        self.conn.commit()
+        self._execute(
+            "INSERT INTO events (run_id, event_type, module, payload) "
+            "VALUES ($1, $2, $3, $4)",
+            [run_id, type(event).__name__, event.module, event.model_dump_json()],
+        )
 
     # ------------------------------------------------------------------
     # Image results
     # ------------------------------------------------------------------
 
     def store_image_results(self, run_id: str, results: list[ImageReport]) -> None:
-        """Bulk-insert per-image results."""
-        with self.conn.cursor() as cur:
-            for result in results:
-                cur.execute(
-                    """
-                    INSERT INTO image_results
-                        (run_id, image_id, image_path, verdict, scores, flags, recovery_suggestion, explanation)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    (
-                        run_id,
-                        result.image_id,
-                        result.image_path,
-                        result.verdict,
-                        json.dumps(result.scores),
-                        json.dumps(result.flags),
-                        result.recovery_suggestion,
-                        result.explanation,
-                    ),
-                )
-        self.conn.commit()
+        statements = []
+        for img in results:
+            statements.append({
+                "query": "INSERT INTO image_results (run_id, image_id, image_path, verdict, scores, errors, flags) "
+                         "VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                "params": [
+                    run_id, img.image_id, img.image_path, img.verdict,
+                    json.dumps(img.scores), json.dumps([]),
+                    json.dumps(img.flags),
+                ],
+            })
+        if statements:
+            self._execute_batch(statements)
 
     # ------------------------------------------------------------------
     # Queries
     # ------------------------------------------------------------------
 
-    def _rows_to_dicts(self, cursor) -> list[dict[str, Any]]:
-        if cursor.description is None:
-            return []
-        columns = [col[0] for col in cursor.description]
-        return [dict(zip(columns, row)) for row in (cursor.fetchall())]
-
     def get_run(self, run_id: str) -> dict[str, Any] | None:
-        """Return a single run row as a dict, or None if not found."""
-        with self.conn.cursor() as cur:
-            cur.execute(
-                "SELECT * FROM runs WHERE id = %s",
-                (run_id,),
-            )
-            row = cur.fetchone()
-            if row is None:
-                return None
-            if cur.description is None:
-                return None
-            columns = [col[0] for col in cur.description]
-            return dict(zip(columns, row))
+        result = self._execute("SELECT * FROM runs WHERE id = $1", [run_id])
+        rows = self._rows_to_dicts(result)
+        return rows[0] if rows else None
 
-    def list_runs(self, limit: int = 50) -> list[dict[str, Any]]:
-        """Return the most recent runs ordered by creation time descending."""
-        with self.conn.cursor() as cur:
-            cur.execute(
-                "SELECT * FROM runs ORDER BY created_at DESC LIMIT %s",
-                (limit,),
-            )
-            rows = cur.fetchall()
-            if not rows or cur.description is None:
-                return []
-            columns = [col[0] for col in cur.description]
-            return [dict(zip(columns, row)) for row in rows]
+    def list_runs(self, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
+        result = self._execute(
+            "SELECT id, intent, status, total_images, usable_count, overall_score, created_at "
+            "FROM runs ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+            [limit, offset],
+        )
+        return self._rows_to_dicts(result)
 
     def get_run_events(self, run_id: str) -> list[dict[str, Any]]:
-        """Return all events for a run ordered by occurrence time."""
-        with self.conn.cursor() as cur:
-            cur.execute(
-                "SELECT * FROM events WHERE run_id = %s ORDER BY occurred_at ASC",
-                (run_id,),
+        result = self._execute(
+            "SELECT * FROM events WHERE run_id = $1 ORDER BY created_at", [run_id],
+        )
+        return self._rows_to_dicts(result)
+
+    def get_run_images(self, run_id: str, verdict: str | None = None) -> list[dict[str, Any]]:
+        if verdict:
+            result = self._execute(
+                "SELECT * FROM image_results WHERE run_id = $1 AND verdict = $2",
+                [run_id, verdict],
             )
-            rows = cur.fetchall()
-            if not rows or cur.description is None:
-                return []
-            columns = [col[0] for col in cur.description]
-            return [dict(zip(columns, row)) for row in rows]
-
-    def get_run_images(self, run_id: str) -> list[dict[str, Any]]:
-        """Return all image results for a run."""
-        with self.conn.cursor() as cur:
-            cur.execute(
-                "SELECT * FROM image_results WHERE run_id = %s",
-                (run_id,),
+        else:
+            result = self._execute(
+                "SELECT * FROM image_results WHERE run_id = $1", [run_id],
             )
-            rows = cur.fetchall()
-            if not rows or cur.description is None:
-                return []
-            columns = [col[0] for col in cur.description]
-            return [dict(zip(columns, row)) for row in rows]
+        return self._rows_to_dicts(result)
 
-    def query_images(
-        self,
-        run_id: str | None = None,
-        verdict: str | None = None,
-        limit: int = 100,
-    ) -> list[dict[str, Any]]:
-        """Query image results with optional filters on run_id and verdict."""
-        conditions: list[str] = []
-        params: list[Any] = []
-
-        if run_id is not None:
-            conditions.append("run_id = %s")
-            params.append(run_id)
-        if verdict is not None:
-            conditions.append("verdict = %s")
+    def query_images(self, verdict: str | None = None, min_score: float | None = None,
+                     dimension: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        conditions = []
+        params = []
+        idx = 1
+        if verdict:
+            conditions.append(f"verdict = ${idx}")
             params.append(verdict)
-
-        where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+            idx += 1
+        if min_score is not None and dimension:
+            conditions.append(f"(scores->>'{dimension}')::float >= ${idx}")
+            params.append(min_score)
+            idx += 1
+        where = "WHERE " + " AND ".join(conditions) if conditions else ""
         params.append(limit)
-
-        sql = f"SELECT * FROM image_results {where_clause} LIMIT %s"
-
-        with self.conn.cursor() as cur:
-            cur.execute(sql, params)
-            rows = cur.fetchall()
-            if not rows or cur.description is None:
-                return []
-            columns = [col[0] for col in cur.description]
-            return [dict(zip(columns, row)) for row in rows]
-
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
+        result = self._execute(
+            f"SELECT * FROM image_results {where} ORDER BY created_at DESC LIMIT ${idx}",
+            params,
+        )
+        return self._rows_to_dicts(result)
 
     def close(self) -> None:
-        """Close the underlying database connection."""
-        self.conn.close()
+        """No-op for HTTP-based store (no persistent connection)."""
+        pass
