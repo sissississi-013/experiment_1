@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from PIL import Image
 from unittest.mock import patch
 from validation_pipeline.config import PipelineConfig
@@ -7,6 +8,7 @@ from validation_pipeline.schemas.spec import FormalSpec, QualityCriterion, Quant
 from validation_pipeline.schemas.plan import ValidationPlan, PlanStep, SamplingStrategy, CostEstimate
 from validation_pipeline.pipeline import ValidationPipeline
 from validation_pipeline.schemas.dataset import DatasetPlan
+from validation_pipeline.errors import DatasetError, SpecValidationError
 
 
 def test_full_pipeline(tmp_path):
@@ -118,3 +120,28 @@ def test_pipeline_with_dataset_description(tmp_path):
         )
 
     assert report.dataset_stats.total_images == 10
+
+
+def test_pipeline_raises_dataset_error_no_path_or_description():
+    config = PipelineConfig(tool_configs_dir="/nonexistent")
+    pipeline = ValidationPipeline(config)
+    with pytest.raises(DatasetError):
+        pipeline.run(UserInput(intent="test"), auto_approve=True)
+
+
+def test_pipeline_raises_spec_validation_error_unconfirmed(tmp_path):
+    img_dir = tmp_path / "imgs"
+    img_dir.mkdir()
+    config_dir = tmp_path / "configs"
+    config_dir.mkdir()
+    config = PipelineConfig(tool_configs_dir=str(config_dir))
+    pipeline = ValidationPipeline(config)
+    mock_spec = FormalSpec(
+        restated_request="test", assumptions=[], content_criteria=[],
+        quality_criteria=[], quantity_targets=QuantityTarget(),
+        output_format=OutputFormat(), success_criteria="test",
+        user_confirmed=False,
+    )
+    with patch("validation_pipeline.modules.spec_generator._call_llm", return_value=mock_spec):
+        with pytest.raises(SpecValidationError):
+            pipeline.run(UserInput(dataset_path=str(img_dir), intent="test"), auto_approve=False)
