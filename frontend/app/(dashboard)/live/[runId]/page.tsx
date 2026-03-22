@@ -45,11 +45,20 @@ export default function LiveViewPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
 
+  const gotLiveEvents = useRef(false);
+
   useEffect(() => {
     const ws = connectToRun(runId, (event) => {
+      gotLiveEvents.current = true;
       setEvents((prev) => [...prev, event]);
       handleEvent(event);
-    }, () => loadCompletedRun());
+    }, () => {
+      // Only load from DB if we never got live events (viewing a past run)
+      // or if the run completed and we need the final data
+      if (!gotLiveEvents.current) {
+        loadCompletedRun();
+      }
+    });
 
     timerRef.current = setInterval(() => {
       if (!completedRef.current) {
@@ -66,8 +75,11 @@ export default function LiveViewPage() {
   const markCompleted = useCallback((finalElapsed?: number) => {
     completedRef.current = true;
     setCompleted(true);
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (finalElapsed != null) {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (finalElapsed != null && finalElapsed > 0) {
       setStats((p) => ({ ...p, elapsed: finalElapsed }));
     }
   }, []);
@@ -96,11 +108,10 @@ export default function LiveViewPage() {
     if (event.type === "SpecGenerated") {
       setIntent((event as any).spec_summary || "");
     }
-    if (event.type === "RunCompleted") {
-      markCompleted();
-    }
-    if (event.type === "ModuleCompleted" && (event as any).module === "reporter") {
-      markCompleted((event as any).duration_seconds);
+    if (event.type === "RunCompleted" || (event.type === "ModuleCompleted" && (event as any).module === "reporter")) {
+      // Freeze the elapsed timer at its current value
+      const finalElapsed = (Date.now() - startTime.current) / 1000;
+      markCompleted(finalElapsed);
     }
     if (event.type === "ModuleCompleted" && (event as any).module === "executor") {
       setStats((p) => ({ ...p, elapsed: (event as any).duration_seconds }));
@@ -111,16 +122,17 @@ export default function LiveViewPage() {
     try {
       const run = await getRun(runId);
       if (run.status === "completed" || run.status === "failed") {
-        markCompleted(0);
+        const elapsedSoFar = (Date.now() - startTime.current) / 1000;
+        markCompleted(elapsedSoFar);
         setIntent(run.intent || "");
-        setStats({
+        setStats((prev) => ({
           processed: run.total_images || 0,
           total: run.total_images || 0,
           usable: run.usable_count || 0,
           recoverable: run.recoverable_count || 0,
           unusable: run.unusable_count || 0,
-          elapsed: 0,
-        });
+          elapsed: prev.elapsed > 0 ? prev.elapsed : elapsedSoFar,
+        }));
         const imgs = await getRunImages(runId);
         setImages(imgs.map((img: any) => ({
           image_id: img.image_id,
