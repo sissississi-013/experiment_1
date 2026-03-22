@@ -37,9 +37,12 @@ def test_laplacian_normalize_returns_tool_result():
 
 def test_histogram_detects_dark_image():
     tool = HistogramExposureTool(config={})
-    dark_score = tool.execute(_black_image())
-    normal_score = tool.execute(_sharp_image())
-    assert dark_score < normal_score
+    dark_raw = tool.execute(_black_image())
+    normal_raw = tool.execute(_sharp_image())
+    # execute now returns dict, compare normalized scores
+    dark_result = tool.normalize(dark_raw)
+    normal_result = tool.normalize(normal_raw)
+    assert dark_result.score < normal_result.score
 
 
 def test_pixel_stats_detects_solid_color():
