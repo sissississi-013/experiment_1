@@ -10,13 +10,17 @@ export default function NewRunPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!intent.trim()) return;
+  const canSubmit = intent.trim().length > 0 && !loading;
+
+  async function handleClick() {
+    if (!canSubmit) return;
     setLoading(true);
     setError("");
     try {
-      const result = await createRun({ intent: intent.trim(), dataset_description: datasetDesc.trim() || intent.trim() });
+      const result = await createRun({
+        intent: intent.trim(),
+        dataset_description: datasetDesc.trim() || intent.trim(),
+      });
       router.push(`/live/${result.run_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start run");
@@ -25,47 +29,115 @@ export default function NewRunPage() {
   }
 
   return (
-    <div className="p-8 max-w-[980px] mx-auto">
-      <div className="mb-8">
-        <h2 className="text-[28px] font-bold tracking-tight mb-1">Start a Validation Run</h2>
-        <p className="text-[var(--text-secondary)] text-[15px]">Describe what you&apos;re looking for and the pipeline handles the rest.</p>
+    <div style={{ padding: "32px", maxWidth: "980px", margin: "0 auto" }}>
+      <div style={{ marginBottom: "32px" }}>
+        <h2 style={{ fontSize: "28px", fontWeight: 700, letterSpacing: "-0.02em", marginBottom: "4px" }}>
+          Start a Validation Run
+        </h2>
+        <p style={{ color: "#6E6E73", fontSize: "15px" }}>
+          Describe what you&apos;re looking for and the pipeline handles the rest.
+        </p>
       </div>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
         <div>
-          <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">What do you want to validate?</label>
-          <textarea className="input-apple min-h-[80px] resize-none text-[16px]" placeholder="find 10 sharp, well-exposed images of horses from COCO" value={intent} onChange={(e) => setIntent(e.target.value)} rows={3} />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">Dataset Description <span className="font-normal">(optional)</span></label>
-            <input className="input-apple" placeholder="Auto-detected from intent" value={datasetDesc} onChange={(e) => setDatasetDesc(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">Max Images</label>
-            <input className="input-apple" type="number" defaultValue="50" />
-          </div>
-        </div>
-        {error && <div className="text-[#FF3B30] text-[13px] bg-[rgba(255,59,48,0.1)] rounded-[12px] p-3">{error}</div>}
-        <div className="flex justify-end mt-2">
-          <button
-            type="submit"
-            disabled={loading || !intent.trim()}
+          <label style={{ display: "block", fontSize: "12px", fontWeight: 500, color: "#6E6E73", marginBottom: "6px" }}>
+            What do you want to validate?
+          </label>
+          <textarea
             style={{
-              background: loading || !intent.trim() ? "rgba(0,113,227,0.5)" : "#0071E3",
+              width: "100%",
+              minHeight: "80px",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "12px",
+              padding: "12px 14px",
+              fontSize: "16px",
+              color: "var(--text-primary)",
+              fontFamily: "inherit",
+              resize: "none",
+            }}
+            placeholder="find 10 sharp, well-exposed images of horses from COCO"
+            value={intent}
+            onChange={(e) => setIntent(e.target.value)}
+            rows={3}
+          />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div>
+            <label style={{ display: "block", fontSize: "12px", fontWeight: 500, color: "#6E6E73", marginBottom: "6px" }}>
+              Dataset Description <span style={{ fontWeight: 400 }}>(optional)</span>
+            </label>
+            <input
+              style={{
+                width: "100%",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: "12px",
+                padding: "10px 14px",
+                fontSize: "15px",
+                color: "var(--text-primary)",
+                fontFamily: "inherit",
+                minHeight: "44px",
+              }}
+              placeholder="Auto-detected from intent"
+              value={datasetDesc}
+              onChange={(e) => setDatasetDesc(e.target.value)}
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "12px", fontWeight: 500, color: "#6E6E73", marginBottom: "6px" }}>
+              Max Images
+            </label>
+            <input
+              style={{
+                width: "100%",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: "12px",
+                padding: "10px 14px",
+                fontSize: "15px",
+                color: "var(--text-primary)",
+                fontFamily: "inherit",
+                minHeight: "44px",
+              }}
+              type="number"
+              defaultValue="50"
+            />
+          </div>
+        </div>
+
+        {error && (
+          <div style={{ color: "#FF3B30", fontSize: "13px", background: "rgba(255,59,48,0.1)", borderRadius: "12px", padding: "12px" }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+          <button
+            type="button"
+            onClick={handleClick}
+            style={{
+              background: canSubmit ? "#0071E3" : "rgba(0,113,227,0.4)",
               color: "white",
               border: "none",
               borderRadius: "980px",
-              padding: "10px 32px",
+              padding: "12px 32px",
               fontSize: "15px",
               fontWeight: 500,
-              cursor: loading || !intent.trim() ? "not-allowed" : "pointer",
+              cursor: canSubmit ? "pointer" : "not-allowed",
               minHeight: "44px",
+              fontFamily: "inherit",
+              transition: "background 0.2s",
             }}
+            onMouseEnter={(e) => { if (canSubmit) (e.target as HTMLButtonElement).style.background = "#0077ED"; }}
+            onMouseLeave={(e) => { if (canSubmit) (e.target as HTMLButtonElement).style.background = "#0071E3"; }}
           >
             {loading ? "Starting..." : "Start Validation"}
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
