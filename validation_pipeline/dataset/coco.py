@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import requests
 from pathlib import Path
 from validation_pipeline.schemas.dataset import DatasetPlan
@@ -46,6 +47,7 @@ class COCODownloader(BaseDownloader):
         else:
             target_img_ids = {img["id"] for img in data["images"]}
         images = [img for img in data["images"] if img["id"] in target_img_ids]
+        random.shuffle(images)  # Randomize so each run gets different images
         images = images[:plan.max_images]
         dest = Path(plan.download_path)
         dest.mkdir(parents=True, exist_ok=True)
