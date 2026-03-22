@@ -9,7 +9,7 @@ import ProgressLog from "@/components/ProgressLog";
 import ImageGrid from "@/components/ImageGrid";
 import ExportDropdown from "@/components/ExportDropdown";
 
-interface Img { image_id: string; verdict: string; scores: Record<string, number>; }
+interface Img { image_id: string; image_path?: string; verdict: string; scores: Record<string, number>; }
 
 export default function LiveViewPage() {
   const params = useParams();
@@ -38,7 +38,7 @@ export default function LiveViewPage() {
     if (event.type === "ImageProgress") { const e = event as any; setStats((p) => ({ ...p, processed: e.current, total: e.total })); }
     if (event.type === "ImageVerdict") {
       const e = event as any;
-      setImages((p) => [...p, { image_id: e.image_id, verdict: e.verdict, scores: e.scores || {} }]);
+      setImages((p) => [...p, { image_id: e.image_id, image_path: e.image_path, verdict: e.verdict, scores: e.scores || {} }]);
       setStats((p) => ({
         ...p,
         usable: p.usable + (e.verdict === "usable" ? 1 : 0),
@@ -57,7 +57,7 @@ export default function LiveViewPage() {
         setCompleted(true);
         setStats({ processed: run.total_images || 0, total: run.total_images || 0, usable: run.usable_count || 0, recoverable: run.recoverable_count || 0, unusable: run.unusable_count || 0, elapsed: 0 });
         const imgs = await getRunImages(runId);
-        setImages(imgs.map((img: any) => ({ image_id: img.image_id, verdict: img.verdict, scores: typeof img.scores === "string" ? JSON.parse(img.scores) : img.scores || {} })));
+        setImages(imgs.map((img: any) => ({ image_id: img.image_id, image_path: img.image_path, verdict: img.verdict, scores: typeof img.scores === "string" ? JSON.parse(img.scores) : img.scores || {} })));
       }
     } catch { setError("Run not found"); }
   }
