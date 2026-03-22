@@ -55,3 +55,18 @@ app.include_router(ws_router)
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+from fastapi.responses import FileResponse
+from pathlib import Path
+
+@app.get("/api/images/file")
+async def serve_image(path: str):
+    """Serve a local image file by its absolute path."""
+    file_path = Path(path)
+    if not file_path.exists() or not file_path.is_file():
+        from fastapi import HTTPException
+        raise HTTPException(404, "Image not found")
+    suffix = file_path.suffix.lower()
+    media_types = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".bmp": "image/bmp"}
+    return FileResponse(str(file_path), media_type=media_types.get(suffix, "image/jpeg"))

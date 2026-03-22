@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { listRuns, getRunImages } from "@/lib/api";
+import { listRuns, getRunImages, getImageUrl } from "@/lib/api";
 
 interface ImageItem {
   image_id: string;
@@ -149,20 +149,33 @@ export default function GalleryPage() {
                   onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
                   onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
                 >
+                  {img.image_path && (
+                    <img
+                      src={getImageUrl(img.image_path)}
+                      alt={img.image_id}
+                      style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }}
+                      loading="lazy"
+                    />
+                  )}
                   <div style={{
                     position: "absolute", top: "6px", right: "6px",
-                    width: "8px", height: "8px", borderRadius: "50%",
+                    width: "10px", height: "10px", borderRadius: "50%",
                     background: verdictColors[img.verdict] || "#6E6E73",
+                    border: "1.5px solid rgba(0,0,0,0.3)",
+                    zIndex: 2,
                   }} />
-                  <span style={{ fontSize: "10px", fontFamily: "SF Mono, Menlo, monospace", color: "#6E6E73" }}>
-                    {img.image_id.slice(-8)}
-                  </span>
+                  {!img.image_path && (
+                    <span style={{ fontSize: "10px", fontFamily: "SF Mono, Menlo, monospace", color: "#6E6E73", zIndex: 1 }}>
+                      {img.image_id.slice(-8)}
+                    </span>
+                  )}
                   <div style={{
                     position: "absolute", bottom: 0, left: 0, right: 0,
-                    background: "linear-gradient(transparent, rgba(0,0,0,0.6))",
-                    padding: "4px 6px",
-                    fontSize: "9px",
-                    color: "#a1a1a6",
+                    background: "linear-gradient(transparent, rgba(0,0,0,0.7))",
+                    padding: "16px 6px 4px",
+                    fontSize: "10px",
+                    color: "white",
+                    zIndex: 2,
                   }}>
                     {img.verdict}
                   </div>
@@ -185,14 +198,21 @@ export default function GalleryPage() {
                 aspectRatio: "1",
                 background: "var(--surface)",
                 borderRadius: "12px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                overflow: "hidden",
                 marginBottom: "16px",
-                fontSize: "12px",
-                color: "#6E6E73",
+                position: "relative",
               }}>
-                {basename(selected.image_path)}
+                {selected.image_path ? (
+                  <img
+                    src={getImageUrl(selected.image_path)}
+                    alt={selected.image_id}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                ) : (
+                  <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", color: "#6E6E73" }}>
+                    {basename(selected.image_path)}
+                  </div>
+                )}
               </div>
 
               <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "4px" }}>

@@ -18,3 +18,7 @@ export async function getRunImages(runId: string, verdict?: string) {
 export function getExportUrl(runId: string, filter = "usable") {
   return `${API_BASE}/api/runs/${runId}/export?filter=${filter}`;
 }
+
+export function getImageUrl(imagePath: string) {
+  return `${API_BASE}/api/images/file?path=${encodeURIComponent(imagePath)}`;
+}
