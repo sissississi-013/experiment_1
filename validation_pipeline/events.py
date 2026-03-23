@@ -22,7 +22,6 @@ class ToolProgress(PipelineEvent):
     tool_name: str
     image_path: str
     score: float
-    passed: bool
 
 class DatasetResolved(PipelineEvent):
     source: str
@@ -49,3 +48,27 @@ class PipelineErrorEvent(PipelineEvent):
     error_type: str
     message: str
     context: dict[str, Any] = {}
+
+
+class ImageScored(PipelineEvent):
+    image_id: str
+    image_path: str
+    scores: dict[str, float] = {}
+    errors: list[str] = []
+
+
+class RecalibrationStarted(PipelineEvent):
+    dimensions: list[str] = []
+
+
+class ThresholdDetermined(PipelineEvent):
+    dimension: str
+    method: str
+    thresholds: list[float] = []
+    confidence: float = 0.0
+    explanation: str = ""
+
+
+class RecalibrationCompleted(PipelineEvent):
+    method_summary: str = ""
+    overall_confidence: float = 0.0
