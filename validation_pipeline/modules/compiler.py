@@ -28,14 +28,11 @@ def compile_plan(plan: ValidationPlan) -> CompiledProgram:
         config_str = ", ".join(config_parts)
         tool_call = f"{step.tool_name}(image" + (f", {config_str}" if config_str else "") + ")"
 
-        threshold_check = f"{var_name} >= {step.threshold}"
-
         lines.append(ProgramLine(
             line_number=i + 1,
             variable_name=var_name,
             tool_call=tool_call,
             output_type="float",
-            threshold_check=threshold_check,
             tier=step.tier,
             tool_params=step.tool_params,
         ))
@@ -47,6 +44,6 @@ def compile_plan(plan: ValidationPlan) -> CompiledProgram:
         program_id=str(uuid.uuid4())[:8],
         source_plan_id=plan.plan_id,
         per_image_lines=lines,
-        batch_strategy=BatchStrategy(early_exit=True),
+        batch_strategy=BatchStrategy(early_exit=False),
         tool_imports=tool_imports,
     )
