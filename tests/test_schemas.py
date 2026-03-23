@@ -41,11 +41,8 @@ def test_tool_result_normalized():
         tool_name="laplacian_blur",
         dimension="blur",
         score=0.85,
-        passed=False,
-        threshold=0.45,
     )
-    assert tr.passed is False
-    assert tr.score > tr.threshold
+    assert tr.score == 0.85
 
 
 def test_plan_step_has_hypothesis():
@@ -53,11 +50,11 @@ def test_plan_step_has_hypothesis():
         step_id=1,
         dimension="blur",
         tool_name="laplacian_blur",
-        threshold=0.45,
-        threshold_source="exemplar_calibration",
-        hypothesis="Laplacian variance will catch 90%+ of blur at threshold 0.45",
+        strictness=0.7,
+        hypothesis="Laplacian variance will catch 90%+ of blur",
     )
     assert step.hypothesis != ""
+    assert step.strictness == 0.7
 
 
 def test_validation_plan_requires_approval():
@@ -74,7 +71,7 @@ def test_validation_plan_requires_approval():
 def test_plan_step_tool_params():
     step = PlanStep(
         step_id=1, dimension="content", tool_name="roboflow_object_detection",
-        threshold=0.5, threshold_source="default",
+        strictness=0.5,
         hypothesis="Detect horses", tier=2,
         tool_params={"target_label": "horse"},
     )
@@ -84,7 +81,6 @@ def test_plan_step_tool_params():
 def test_plan_step_tool_params_default_none():
     step = PlanStep(
         step_id=1, dimension="blur", tool_name="laplacian_blur",
-        threshold=0.5, threshold_source="default",
         hypothesis="Detect blur", tier=1,
     )
     assert step.tool_params is None

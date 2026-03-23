@@ -6,8 +6,6 @@ class ToolResult(BaseModel):
     tool_name: str
     dimension: str
     score: float
-    passed: bool
-    threshold: float
     confidence: float = 1.0
     raw_output: Any = None
     explanation: str | None = None
@@ -26,15 +24,10 @@ class ImageResult(BaseModel):
 
 
 class ExecutionSummary(BaseModel):
-    usable_count: int = 0
-    recoverable_count: int = 0
-    unusable_count: int = 0
     error_count: int = 0
-    flag_rates: dict[str, float] = {}
-    avg_exemplar_similarity: float | None = None
-    early_exit_rate: float = 0.0
     tool_error_rate: dict[str, float] = {}
     wall_time_seconds: float = 0.0
+    avg_exemplar_similarity: float | None = None
 
 
 class ExecutionResult(BaseModel):
