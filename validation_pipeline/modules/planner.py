@@ -11,7 +11,7 @@ SYSTEM_PROMPT = """You are a validation plan generator. Given a formal specifica
 Rules:
 1. For each content criterion, select a detection tool (prefer nvidia_grounding_dino for object detection; fallback to roboflow_object_detection)
 2. For each quality criterion, select a measurement tool matching the dimension
-3. Use calibrated thresholds when available. When calibration shows separability=0.0 or "No calibration data", use sensible defaults: blur threshold 0.3-0.5, exposure threshold 0.3-0.6, content detection threshold 0.5-0.7. NEVER set thresholds to 1.0 — that requires a perfect score and nothing will pass
+3. For each quality dimension, set a strictness value (0.0-1.0) based on the user's intent. 0.0 = very lenient (accept most images), 1.0 = very strict (only the best). Consider the user's purpose: research datasets need strictness ~0.7, social media ~0.3, medical imaging ~0.9. Default to 0.5 if unsure
 4. Order steps by tier: Tier 1 (cheap, CPU) first, Tier 2 (API) second, Tier 3 (VLM) last
 5. Group independent steps in the same parallel_group
 6. Each tool selection MUST include a hypothesis explaining why this tool was chosen and what you expect
@@ -36,7 +36,7 @@ def _call_llm(
         for t in tools
     ])
     cal_desc = "\n".join([
-        f"- {dim}: threshold={cal.calibrated_threshold:.2f}, separability={cal.separability:.2f}"
+        f"- {dim}: separability={cal.separability:.2f}"
         for dim, cal in calibration.tool_calibrations.items()
     ]) or "No calibration data available."
 
