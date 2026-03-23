@@ -7,7 +7,22 @@ from validation_pipeline.dataset.huggingface import HuggingFaceDownloader
 from validation_pipeline.dataset.url import URLDownloader
 
 
-SYSTEM_PROMPT = """You are a dataset resolver. Given a user's description of what dataset they need,
+COCO_CATEGORIES = [
+    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
+    "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
+    "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra",
+    "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+    "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove",
+    "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup",
+    "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
+    "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
+    "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse",
+    "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
+    "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier",
+    "toothbrush",
+]
+
+SYSTEM_PROMPT = f"""You are a dataset resolver. Given a user's description of what dataset they need,
 produce a DatasetPlan with:
 - source: "coco", "huggingface", or "url"
 - url: the base URL or repo ID for the dataset
@@ -17,12 +32,17 @@ produce a DatasetPlan with:
 - download_path: use "/tmp/validation-pipeline-data/<descriptive-name>"
 
 For COCO datasets:
+- ONLY use source "coco" if the requested category is in this list: {COCO_CATEGORIES}
+- If the category is NOT in the list above, use "huggingface" instead
 - url should be "http://images.cocodataset.org"
 - subset should be one of: "train2017", "val2017"
 - Prefer val2017 for smaller downloads unless the user asks for training data
 
 For HuggingFace datasets:
+- Use this when the requested object/category is NOT in COCO's 80 categories
+- Search for a relevant dataset on HuggingFace Hub
 - url should be the repo_id (e.g., "username/dataset-name")
+- Pick datasets with many downloads/likes when possible
 
 For direct URLs:
 - url should be the full download URL"""
