@@ -1,4 +1,5 @@
 from validation_pipeline.schemas.execution import ExecutionResult
+from validation_pipeline.schemas.recalibration import RecalibrationResult
 from validation_pipeline.schemas.calibration import CalibrationResult
 from validation_pipeline.schemas.plan import ValidationPlan
 from validation_pipeline.schemas.supervision import SupervisionReport, SupervisionCheck, Anomaly
@@ -6,13 +7,22 @@ from validation_pipeline.schemas.supervision import SupervisionReport, Supervisi
 
 def supervise(
     result: ExecutionResult,
+    recalibration: RecalibrationResult,
     calibration: CalibrationResult,
     plan: ValidationPlan,
 ) -> SupervisionReport:
     checks = []
     anomalies = []
 
-    for dim, rate in result.summary.flag_rates.items():
+    # Compute flag rates from recalibration verdicts
+    flag_rates: dict[str, float] = {}
+    total = len(recalibration.image_verdicts) or 1
+    for vr in recalibration.image_verdicts.values():
+        for dim in vr.failed_dimensions:
+            flag_rates[dim] = flag_rates.get(dim, 0) + 1
+    flag_rates = {k: v / total for k, v in flag_rates.items()}
+
+    for dim, rate in flag_rates.items():
         reasonable = rate < 0.6
         checks.append(SupervisionCheck(
             check_name=f"flag_rate_{dim}",
@@ -59,11 +69,12 @@ def supervise(
                 suggested_action="Check API keys, network connectivity, and image formats",
             ))
 
-    empty = result.summary.usable_count == 0 and result.processed > 0
+    usable_count = sum(1 for v in recalibration.image_verdicts.values() if v.verdict == "usable")
+    empty = usable_count == 0 and result.processed > 0
     checks.append(SupervisionCheck(
         check_name="empty_result",
         passed=not empty,
-        details=f"Usable: {result.summary.usable_count}/{result.processed}",
+        details=f"Usable: {usable_count}/{result.processed}",
     ))
     if empty:
         anomalies.append(Anomaly(
@@ -71,6 +82,24 @@ def supervise(
             description="Zero images passed all checks",
             likely_cause="Thresholds are too strict or tools are misconfigured",
             suggested_action="Revise thresholds or review the validation plan",
+        ))
+
+    # Check recalibration confidence
+    for dim, dc in recalibration.dimension_calibrations.items():
+        if dc.confidence < 0.6:
+            anomalies.append(Anomaly(
+                severity="warning",
+                description=f"Calibration confidence is low for {dim} ({dc.confidence:.2f})",
+                likely_cause="Score distribution lacks clear clusters",
+                suggested_action="Consider providing exemplar images",
+            ))
+
+    if all(dc.method == "percentile" for dc in recalibration.dimension_calibrations.values()):
+        anomalies.append(Anomaly(
+            severity="warning",
+            description="All dimensions used percentile-based thresholds",
+            likely_cause="Score distributions were unimodal across all dimensions",
+            suggested_action="Thresholds are relative to this batch, not absolute quality",
         ))
 
     has_blockers = any(a.severity == "blocker" for a in anomalies)
