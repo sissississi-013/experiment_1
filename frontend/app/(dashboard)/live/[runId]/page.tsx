@@ -44,6 +44,7 @@ export default function LiveViewPage() {
   const startTime = useRef(Date.now());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
+  const serverElapsed = useRef<number | null>(null);
 
   const gotLiveEvents = useRef(false);
 
@@ -70,7 +71,7 @@ export default function LiveViewPage() {
       ws.close();
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [runId]);
+  }, [runId]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const markCompleted = useCallback((finalElapsed?: number) => {
     completedRef.current = true;
@@ -108,13 +109,15 @@ export default function LiveViewPage() {
     if (event.type === "SpecGenerated") {
       setIntent((event as any).spec_summary || "");
     }
-    if (event.type === "RunCompleted" || (event.type === "ModuleCompleted" && (event as any).module === "reporter")) {
-      // Freeze the elapsed timer at its current value
-      const finalElapsed = (Date.now() - startTime.current) / 1000;
-      markCompleted(finalElapsed);
+    if (event.type === "ModuleCompleted") {
+      const duration = (event as any).duration_seconds;
+      if (typeof duration === "number") {
+        serverElapsed.current = (serverElapsed.current ?? 0) + duration;
+      }
     }
-    if (event.type === "ModuleCompleted" && (event as any).module === "executor") {
-      setStats((p) => ({ ...p, elapsed: (event as any).duration_seconds }));
+    if (event.type === "RunCompleted" || (event.type === "ModuleCompleted" && (event as any).module === "reporter")) {
+      const finalElapsed = serverElapsed.current ?? (Date.now() - startTime.current) / 1000;
+      markCompleted(finalElapsed);
     }
   }
 
@@ -122,17 +125,20 @@ export default function LiveViewPage() {
     try {
       const run = await getRun(runId);
       if (run.status === "completed" || run.status === "failed") {
-        const elapsedSoFar = (Date.now() - startTime.current) / 1000;
-        markCompleted(elapsedSoFar);
+        let elapsed = 0;
+        if (run.created_at && run.completed_at) {
+          elapsed = (new Date(run.completed_at).getTime() - new Date(run.created_at).getTime()) / 1000;
+        }
+        markCompleted(elapsed);
         setIntent(run.intent || "");
-        setStats((prev) => ({
+        setStats({
           processed: run.total_images || 0,
           total: run.total_images || 0,
           usable: run.usable_count || 0,
           recoverable: run.recoverable_count || 0,
           unusable: run.unusable_count || 0,
-          elapsed: prev.elapsed > 0 ? prev.elapsed : elapsedSoFar,
-        }));
+          elapsed,
+        });
         const imgs = await getRunImages(runId);
         setImages(imgs.map((img: any) => ({
           image_id: img.image_id,
