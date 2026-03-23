@@ -57,16 +57,53 @@ async def health():
     return {"status": "ok"}
 
 
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pathlib import Path
+import requests as http_requests
+
+MEDIA_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".bmp": "image/bmp"}
+
+# Known source URL patterns for proxy fallback
+SOURCE_URL_PATTERNS = [
+    # COCO val2017
+    lambda p: f"http://images.cocodataset.org/val2017/{Path(p).name}" if "coco" in p.lower() or Path(p).name.startswith("0000") else None,
+    # COCO train2017
+    lambda p: f"http://images.cocodataset.org/train2017/{Path(p).name}" if "train" in p.lower() else None,
+]
+
+
+def _guess_source_url(path: str) -> str | None:
+    for pattern in SOURCE_URL_PATTERNS:
+        url = pattern(path)
+        if url:
+            return url
+    return None
+
 
 @app.get("/api/images/file")
 async def serve_image(path: str):
-    """Serve a local image file by its absolute path."""
+    """Serve image from local disk, or proxy from source URL if local file is missing."""
+    from fastapi import HTTPException
     file_path = Path(path)
-    if not file_path.exists() or not file_path.is_file():
-        from fastapi import HTTPException
-        raise HTTPException(404, "Image not found")
     suffix = file_path.suffix.lower()
-    media_types = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".bmp": "image/bmp"}
-    return FileResponse(str(file_path), media_type=media_types.get(suffix, "image/jpeg"))
+    media_type = MEDIA_TYPES.get(suffix, "image/jpeg")
+
+    # Try local file first
+    if file_path.exists() and file_path.is_file():
+        return FileResponse(str(file_path), media_type=media_type)
+
+    # Local file missing — try to proxy from source
+    source_url = _guess_source_url(path)
+    if source_url:
+        try:
+            resp = http_requests.get(source_url, timeout=10, stream=True)
+            resp.raise_for_status()
+            return StreamingResponse(
+                resp.iter_content(chunk_size=8192),
+                media_type=media_type,
+                headers={"Cache-Control": "public, max-age=86400"},
+            )
+        except Exception:
+            pass
+
+    raise HTTPException(404, "Image not found")
