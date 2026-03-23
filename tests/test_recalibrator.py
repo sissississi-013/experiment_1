@@ -85,16 +85,13 @@ from validation_pipeline.schemas.execution import ExecutionResult, ImageResult, 
 
 
 def _make_execution_result(scores_per_image: list[dict[str, float]]) -> ExecutionResult:
-    """Helper: build ExecutionResult from score dicts.
-    NOTE: ToolResult still has passed/threshold fields currently.
-    """
+    """Helper: build ExecutionResult from score dicts."""
     results = []
     for i, scores in enumerate(scores_per_image):
         tool_results = [
             ToolResult(
                 tool_name=f"tool_{dim}", dimension=dim,
-                score=score, passed=True, threshold=0.5,
-                raw_output=score,
+                score=score, raw_output=score,
             )
             for dim, score in scores.items()
         ]

@@ -25,8 +25,6 @@ class AuditLine(BaseModel):
     variable: str
     raw_value: Any
     calibrated_value: float
-    threshold: float
-    passed: bool
 
 
 class ImageReport(BaseModel):
@@ -44,6 +42,7 @@ class AuditTrail(BaseModel):
     spec: dict
     plan: dict
     calibration: dict
+    recalibration: dict = {}
     supervision_report: dict
     timestamp: str
     llm_model_used: str

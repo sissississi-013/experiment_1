@@ -6,8 +6,7 @@ class PlanStep(BaseModel):
     dimension: str
     tool_name: str
     tool_config: dict = {}
-    threshold: float
-    threshold_source: str
+    strictness: float = 0.5
     hypothesis: str
     fallback_tool: str | None = None
     parallel_group: int = 1
