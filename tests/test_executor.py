@@ -18,9 +18,9 @@ def test_executor_processes_all_images(tmp_path):
         per_image_lines=[
             ProgramLine(line_number=1, variable_name="blur_score",
                         tool_call="laplacian_blur(image)",
-                        output_type="float", threshold_check="blur_score >= 100.0", tier=1),
+                        output_type="float", tier=1),
         ],
-        batch_strategy=BatchStrategy(early_exit=True, error_policy="skip_and_log"),
+        batch_strategy=BatchStrategy(early_exit=False, error_policy="skip_and_log"),
         tool_imports=["laplacian_blur"],
     )
 
@@ -31,7 +31,7 @@ def test_executor_processes_all_images(tmp_path):
     assert result.processed == 10
     assert len(result.results) == 10
     for img_result in result.results:
-        assert img_result.verdict in ("usable", "recoverable", "unusable")
+        assert img_result.verdict == "pending"
         assert img_result.verdict_reason != ""
 
 
@@ -56,7 +56,7 @@ def test_executor_passes_tool_params(tmp_path):
         def normalize(self, raw_output, calibration=None):
             return ToolResult(
                 tool_name="mock_content", dimension="content",
-                score=raw_output, passed=True, threshold=0.5,
+                score=raw_output,
                 raw_output=raw_output,
             )
 
@@ -65,7 +65,7 @@ def test_executor_passes_tool_params(tmp_path):
         per_image_lines=[ProgramLine(
             line_number=1, variable_name="content_score",
             tool_call="mock_content(image)", output_type="float",
-            threshold_check="content_score >= 0.5", tier=2,
+            tier=2,
             tool_params={"target_label": "horse"},
         )],
         batch_strategy=BatchStrategy(),
@@ -74,11 +74,11 @@ def test_executor_passes_tool_params(tmp_path):
     tools = {"mock_content": MockContentTool({})}
     result = execute_program(program, str(img_dir), tools)
     assert received_kwargs == {"target_label": "horse"}
-    assert result.results[0].verdict == "usable"
+    assert result.results[0].verdict == "pending"
 
 
 def test_executor_uses_normalized_score_for_threshold(tmp_path):
-    """Verify executor uses normalized score, not raw_output, for threshold."""
+    """Verify executor uses normalized score, not raw_output."""
     img_dir = tmp_path / "imgs"
     img_dir.mkdir()
     arr = np.random.randint(0, 255, (50, 50, 3), dtype=np.uint8)
@@ -95,8 +95,8 @@ def test_executor_uses_normalized_score_for_threshold(tmp_path):
         def normalize(self, raw_output, calibration=None):
             return ToolResult(
                 tool_name="dict_tool", dimension="content",
-                score=raw_output["best_confidence"], passed=True,
-                threshold=0.5, raw_output=raw_output,
+                score=raw_output["best_confidence"],
+                raw_output=raw_output,
             )
 
     program = CompiledProgram(
@@ -104,7 +104,7 @@ def test_executor_uses_normalized_score_for_threshold(tmp_path):
         per_image_lines=[ProgramLine(
             line_number=1, variable_name="content_score",
             tool_call="dict_tool(image)", output_type="float",
-            threshold_check="content_score >= 0.5", tier=2,
+            tier=2,
             tool_params={"target_label": "horse"},
         )],
         batch_strategy=BatchStrategy(),
@@ -112,7 +112,7 @@ def test_executor_uses_normalized_score_for_threshold(tmp_path):
     )
     tools = {"dict_tool": DictReturningTool({})}
     result = execute_program(program, str(img_dir), tools)
-    assert result.results[0].verdict == "usable"
+    assert result.results[0].verdict == "pending"
 
 
 from validation_pipeline.errors import ToolError
@@ -139,7 +139,7 @@ def test_executor_collects_tool_errors(tmp_path):
         per_image_lines=[ProgramLine(
             line_number=1, variable_name="content_score",
             tool_call="failing_tool(image)", output_type="float",
-            threshold_check="content_score >= 0.5", tier=2,
+            tier=2,
         )],
         batch_strategy=BatchStrategy(),
         tool_imports=["failing_tool"],
@@ -169,7 +169,7 @@ def test_executor_partial_tool_failure(tmp_path):
         def normalize(self, raw_output, calibration=None):
             return ToolResult(
                 tool_name="good_tool", dimension="blur",
-                score=0.9, passed=True, threshold=0.5, raw_output=0.9,
+                score=0.9, raw_output=0.9,
             )
 
     class BadTool(BaseTool):
@@ -184,8 +184,8 @@ def test_executor_partial_tool_failure(tmp_path):
     program = CompiledProgram(
         program_id="p1", source_plan_id="plan1",
         per_image_lines=[
-            ProgramLine(line_number=1, variable_name="blur_score", tool_call="good_tool(image)", output_type="float", threshold_check="blur_score >= 0.5", tier=1),
-            ProgramLine(line_number=2, variable_name="content_score", tool_call="bad_tool(image)", output_type="float", threshold_check="content_score >= 0.5", tier=2),
+            ProgramLine(line_number=1, variable_name="blur_score", tool_call="good_tool(image)", output_type="float", tier=1),
+            ProgramLine(line_number=2, variable_name="content_score", tool_call="bad_tool(image)", output_type="float", tier=2),
         ],
         batch_strategy=BatchStrategy(early_exit=False),
         tool_imports=["good_tool", "bad_tool"],
@@ -196,11 +196,11 @@ def test_executor_partial_tool_failure(tmp_path):
     img = result.results[0]
     assert len(img.errors) > 0
     assert len(img.tool_results) == 1
-    assert img.verdict != "error"
+    assert img.verdict == "pending"
 
 
 from validation_pipeline.event_bus import EventBus
-from validation_pipeline.events import ImageProgress, ImageVerdict, ToolProgress
+from validation_pipeline.events import ImageProgress, ImageScored, ToolProgress
 
 def test_executor_publishes_progress_events(tmp_path):
     img_dir = tmp_path / "imgs"
@@ -218,7 +218,7 @@ def test_executor_publishes_progress_events(tmp_path):
         def normalize(self, raw_output, calibration=None):
             return ToolResult(
                 tool_name="simple_tool", dimension="blur",
-                score=0.8, passed=True, threshold=0.5, raw_output=0.8,
+                score=0.8, raw_output=0.8,
             )
 
     program = CompiledProgram(
@@ -226,7 +226,7 @@ def test_executor_publishes_progress_events(tmp_path):
         per_image_lines=[ProgramLine(
             line_number=1, variable_name="blur_score",
             tool_call="simple_tool(image)", output_type="float",
-            threshold_check="blur_score >= 0.5", tier=1,
+            tier=1,
         )],
         batch_strategy=BatchStrategy(),
         tool_imports=["simple_tool"],
@@ -244,9 +244,8 @@ def test_executor_publishes_progress_events(tmp_path):
     assert progress_events[0].current == 1
     assert progress_events[2].current == 3
 
-    verdict_events = [e for e in events if isinstance(e, ImageVerdict)]
-    assert len(verdict_events) == 3
-    assert all(v.verdict == "usable" for v in verdict_events)
+    scored_events = [e for e in events if isinstance(e, ImageScored)]
+    assert len(scored_events) == 3
 
     tool_events = [e for e in events if isinstance(e, ToolProgress)]
     assert len(tool_events) == 3
