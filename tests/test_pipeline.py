@@ -42,7 +42,7 @@ def test_full_pipeline(tmp_path):
         sampling_strategy=SamplingStrategy(),
         steps=[PlanStep(
             step_id=1, dimension="blur", tool_name="laplacian_blur",
-            threshold=100.0, threshold_source="default",
+            strictness=0.5,
             hypothesis="Laplacian catches blur", tier=1,
         )],
         combination_logic="ALL_PASS",
@@ -62,7 +62,7 @@ def test_full_pipeline(tmp_path):
 
     assert report.dataset_stats.total_images == 20
     assert report.curation_score.overall_score >= 0.0
-    assert report.dataset_stats.usable + report.dataset_stats.recoverable + report.dataset_stats.unusable == 20
+    assert report.dataset_stats.usable + report.dataset_stats.recoverable + report.dataset_stats.unusable + report.dataset_stats.error_count == 20
 
 
 def test_pipeline_with_dataset_description(tmp_path):
@@ -95,7 +95,7 @@ def test_pipeline_with_dataset_description(tmp_path):
         sampling_strategy=SamplingStrategy(),
         steps=[PlanStep(
             step_id=1, dimension="blur", tool_name="laplacian_blur",
-            threshold=100.0, threshold_source="default",
+            strictness=0.5,
             hypothesis="Laplacian catches blur", tier=1,
         )],
         combination_logic="ALL_PASS",
@@ -172,7 +172,7 @@ def test_pipeline_publishes_lifecycle_events(tmp_path):
     mock_plan = ValidationPlan(
         plan_id="p1", spec_summary="test", sampling_strategy=SamplingStrategy(),
         steps=[PlanStep(step_id=1, dimension="blur", tool_name="laplacian_blur",
-            threshold=100.0, threshold_source="default", hypothesis="test", tier=1)],
+            strictness=0.5, hypothesis="test", tier=1)],
         combination_logic="ALL_PASS", estimated_cost=CostEstimate(), user_approved=True,
     )
 
@@ -190,8 +190,10 @@ def test_pipeline_publishes_lifecycle_events(tmp_path):
     module_names = [e.module for e in events_received if isinstance(e, ModuleStarted)]
     assert "spec_generator" in module_names
     assert "executor" in module_names
+    assert "recalibrator" in module_names
     assert "reporter" in module_names
 
     completed_names = [e.module for e in events_received if isinstance(e, ModuleCompleted)]
     assert "spec_generator" in completed_names
     assert "executor" in completed_names
+    assert "recalibrator" in completed_names

@@ -6,7 +6,6 @@ class ProgramLine(BaseModel):
     variable_name: str
     tool_call: str
     output_type: str
-    threshold_check: str | None = None
     tier: int = 1
     tool_params: dict | None = None
 

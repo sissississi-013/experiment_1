@@ -8,7 +8,7 @@ from validation_pipeline.schemas.execution import (
 from validation_pipeline.schemas.calibration import CalibrationResult
 from validation_pipeline.tools.base import BaseTool
 from validation_pipeline.errors import ToolError
-from validation_pipeline.events import ImageProgress, ImageVerdict, ToolProgress
+from validation_pipeline.events import ImageProgress, ImageScored, ToolProgress
 
 
 def execute_program(
@@ -42,7 +42,7 @@ def execute_program(
             results.append(img_result)
             if event_bus:
                 scores = {tr.dimension: tr.score for tr in img_result.tool_results}
-                event_bus.publish(ImageVerdict(module="executor", image_id=img_result.image_id, image_path=img_path, verdict=img_result.verdict, scores=scores, errors=img_result.errors))
+                event_bus.publish(ImageScored(module="executor", image_id=img_result.image_id, image_path=img_path, scores=scores, errors=img_result.errors))
         except Exception as e:
             failed += 1
             results.append(ImageResult(
@@ -75,23 +75,10 @@ def _run_program_on_image(
     event_bus=None,
 ) -> ImageResult:
     tool_results = []
-    all_passed = True
     lines_executed = 0
-    reasons = []
     errors = []
 
-    current_tier = 0
-    tier_failed = False
-
     for line in program.per_image_lines:
-        # Early exit: if a previous tier failed, skip higher tiers
-        if program.batch_strategy.early_exit and tier_failed and line.tier > current_tier:
-            break
-
-        if line.tier > current_tier:
-            current_tier = line.tier
-            tier_failed = False
-
         tool_name = line.tool_call.split("(")[0]
         if tool_name not in tools:
             continue
@@ -112,38 +99,16 @@ def _run_program_on_image(
             cal = None
         tr = tool.normalize(raw_output, cal)
 
-        threshold = 0.5
-        if line.threshold_check and ">=" in line.threshold_check:
-            try:
-                threshold = float(line.threshold_check.split(">=")[-1].strip())
-            except ValueError:
-                pass
-
-        passed = tr.score >= threshold
-
-        tr.passed = passed
-        tr.threshold = threshold
         if event_bus:
-            event_bus.publish(ToolProgress(module="executor", tool_name=tool_name, image_path=image_path, score=tr.score, passed=passed))
+            event_bus.publish(ToolProgress(module="executor", tool_name=tool_name, image_path=image_path, score=tr.score))
         tool_results.append(tr)
-
-        if not passed:
-            all_passed = False
-            tier_failed = True
-            reasons.append(f"{tr.dimension}: {tr.score:.2f} failed threshold {threshold}")
 
     if not tool_results and errors:
         verdict = "error"
         reason = "All tools failed: " + "; ".join(errors)
-    elif all_passed:
-        verdict = "usable"
-        reason = "All checks passed"
-    elif len(reasons) == 1:
-        verdict = "recoverable"
-        reason = "; ".join(reasons)
     else:
-        verdict = "unusable"
-        reason = "; ".join(reasons)
+        verdict = "pending"
+        reason = "Scores collected, awaiting recalibration"
 
     return ImageResult(
         image_id=Path(image_path).stem,
@@ -157,18 +122,8 @@ def _run_program_on_image(
 
 
 def _compute_summary(results: list[ImageResult], wall_time: float) -> ExecutionSummary:
-    usable = sum(1 for r in results if r.verdict == "usable")
-    recoverable = sum(1 for r in results if r.verdict == "recoverable")
-    unusable = sum(1 for r in results if r.verdict == "unusable")
-    error = sum(1 for r in results if r.verdict == "error")
-
-    flag_rates: dict[str, float] = {}
-    for r in results:
-        for tr in r.tool_results:
-            if not tr.passed:
-                flag_rates[tr.dimension] = flag_rates.get(tr.dimension, 0) + 1
+    error_count = sum(1 for r in results if r.verdict == "error")
     total = len(results) or 1
-    flag_rates = {k: v / total for k, v in flag_rates.items()}
 
     # Populate tool_error_rate from per-image errors
     tool_errors: dict[str, int] = {}
@@ -179,11 +134,7 @@ def _compute_summary(results: list[ImageResult], wall_time: float) -> ExecutionS
     tool_error_rate = {k: v / total for k, v in tool_errors.items()}
 
     return ExecutionSummary(
-        usable_count=usable,
-        recoverable_count=recoverable,
-        unusable_count=unusable,
-        error_count=error,
-        flag_rates=flag_rates,
+        error_count=error_count,
         tool_error_rate=tool_error_rate,
         wall_time_seconds=wall_time,
     )

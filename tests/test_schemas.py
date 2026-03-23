@@ -41,11 +41,8 @@ def test_tool_result_normalized():
         tool_name="laplacian_blur",
         dimension="blur",
         score=0.85,
-        passed=False,
-        threshold=0.45,
     )
-    assert tr.passed is False
-    assert tr.score > tr.threshold
+    assert tr.score == 0.85
 
 
 def test_plan_step_has_hypothesis():
@@ -53,11 +50,11 @@ def test_plan_step_has_hypothesis():
         step_id=1,
         dimension="blur",
         tool_name="laplacian_blur",
-        threshold=0.45,
-        threshold_source="exemplar_calibration",
-        hypothesis="Laplacian variance will catch 90%+ of blur at threshold 0.45",
+        strictness=0.7,
+        hypothesis="Laplacian variance will catch 90%+ of blur",
     )
     assert step.hypothesis != ""
+    assert step.strictness == 0.7
 
 
 def test_validation_plan_requires_approval():
@@ -74,7 +71,7 @@ def test_validation_plan_requires_approval():
 def test_plan_step_tool_params():
     step = PlanStep(
         step_id=1, dimension="content", tool_name="roboflow_object_detection",
-        threshold=0.5, threshold_source="default",
+        strictness=0.5,
         hypothesis="Detect horses", tier=2,
         tool_params={"target_label": "horse"},
     )
@@ -84,7 +81,6 @@ def test_plan_step_tool_params():
 def test_plan_step_tool_params_default_none():
     step = PlanStep(
         step_id=1, dimension="blur", tool_name="laplacian_blur",
-        threshold=0.5, threshold_source="default",
         hypothesis="Detect blur", tier=1,
     )
     assert step.tool_params is None
@@ -140,3 +136,52 @@ def test_execution_summary_has_error_count():
 def test_execution_summary_error_count_default_zero():
     summary = ExecutionSummary()
     assert summary.error_count == 0
+
+
+from validation_pipeline.schemas.recalibration import (
+    DimensionCalibration, ImageVerdictRecord, RecalibrationResult,
+)
+
+def test_dimension_calibration_schema():
+    dc = DimensionCalibration(
+        dimension="blur", method="gmm",
+        thresholds=[0.3, 0.6], confidence=0.85,
+        dip_test_p=0.01, gmm_means=[0.2, 0.5, 0.8],
+        explanation="Found 3 clusters", strictness=0.5,
+    )
+    assert dc.dimension == "blur"
+    assert len(dc.thresholds) == 2
+    dumped = dc.model_dump()
+    assert "gmm_means" in dumped
+
+def test_image_verdict_record_schema():
+    ivr = ImageVerdictRecord(
+        image_id="img_001", image_path="/tmp/img_001.jpg",
+        verdict="recoverable", scores={"blur": 0.8, "exposure": 0.3},
+        failed_dimensions=["exposure"],
+        explanation="Failed exposure (0.30 < 0.45)",
+    )
+    assert ivr.verdict == "recoverable"
+    assert ivr.failed_dimensions == ["exposure"]
+
+def test_recalibration_result_schema():
+    dc = DimensionCalibration(
+        dimension="blur", method="percentile",
+        thresholds=[0.2, 0.5], confidence=0.6,
+        dip_test_p=0.3, gmm_means=[],
+        explanation="Unimodal distribution", strictness=0.5,
+    )
+    ivr = ImageVerdictRecord(
+        image_id="img_001", image_path="/tmp/img_001.jpg",
+        verdict="usable", scores={"blur": 0.8},
+        failed_dimensions=[], explanation="All checks passed",
+    )
+    rr = RecalibrationResult(
+        dimension_calibrations={"blur": dc},
+        image_verdicts={"img_001": ivr},
+        method_summary="1/1 dimensions used percentile",
+        overall_confidence=0.6,
+    )
+    assert rr.overall_confidence == 0.6
+    dumped = rr.model_dump()
+    assert "dimension_calibrations" in dumped
