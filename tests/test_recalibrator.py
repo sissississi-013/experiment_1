@@ -79,3 +79,89 @@ def test_gvf_no_separation():
     labels = [0] * 25 + [1] * 25
     gvf = _compute_gvf(scores, labels)
     assert gvf < 0.1
+
+
+from validation_pipeline.schemas.execution import ExecutionResult, ImageResult, ToolResult
+
+
+def _make_execution_result(scores_per_image: list[dict[str, float]]) -> ExecutionResult:
+    """Helper: build ExecutionResult from score dicts.
+    NOTE: ToolResult still has passed/threshold fields currently.
+    """
+    results = []
+    for i, scores in enumerate(scores_per_image):
+        tool_results = [
+            ToolResult(
+                tool_name=f"tool_{dim}", dimension=dim,
+                score=score, passed=True, threshold=0.5,
+                raw_output=score,
+            )
+            for dim, score in scores.items()
+        ]
+        results.append(ImageResult(
+            image_id=f"img_{i:03d}", image_path=f"/tmp/img_{i:03d}.jpg",
+            tool_results=tool_results, verdict="pending", verdict_reason="Awaiting recalibration",
+        ))
+    return ExecutionResult(
+        phase="full", total_images=len(results),
+        processed=len(results), results=results,
+    )
+
+
+def test_recalibrate_full_flow():
+    rng = np.random.RandomState(42)
+    n = 50
+    blur_low = rng.normal(0.2, 0.05, n // 2).clip(0, 1).tolist()
+    blur_high = rng.normal(0.8, 0.05, n // 2).clip(0, 1).tolist()
+    exposure = rng.uniform(0.3, 0.9, n).tolist()
+
+    scores_per_image = [
+        {"blur": blur_low[i] if i < n // 2 else blur_high[i - n // 2],
+         "exposure": exposure[i]}
+        for i in range(n)
+    ]
+    execution = _make_execution_result(scores_per_image)
+    result = recalibrate(execution, strictness_hints={"blur": 0.5, "exposure": 0.5})
+
+    assert len(result.image_verdicts) == n
+    assert result.overall_confidence >= 0
+    assert "blur" in result.dimension_calibrations
+    assert "exposure" in result.dimension_calibrations
+    verdicts = [v.verdict for v in result.image_verdicts.values()]
+    assert "usable" in verdicts
+
+
+def test_recalibrate_with_exemplar_override():
+    from validation_pipeline.schemas.calibration import CalibrationResult, ToolCalibration
+    scores_per_image = [{"blur": 0.6 + i * 0.01} for i in range(20)]
+    execution = _make_execution_result(scores_per_image)
+    cal = CalibrationResult(
+        tool_calibrations={"blur": ToolCalibration(
+            tool_name="laplacian_blur",
+            calibrated_threshold=0.7, separability=0.8,
+            platt_a=1.0, platt_b=-0.5,
+            raw_good_scores=[0.8, 0.9], raw_bad_scores=[0.2, 0.3],
+        )},
+        exemplar_embeddings=[],
+        threshold_report=[],
+    )
+    result = recalibrate(execution, calibration=cal)
+    assert result.dimension_calibrations["blur"].method == "exemplar"
+
+
+def test_recalibrate_exemplar_fallback_low_separability():
+    from validation_pipeline.schemas.calibration import CalibrationResult, ToolCalibration
+    scores_per_image = [{"blur": 0.3 + i * 0.02} for i in range(30)]
+    execution = _make_execution_result(scores_per_image)
+    cal = CalibrationResult(
+        tool_calibrations={"blur": ToolCalibration(
+            tool_name="laplacian_blur",
+            calibrated_threshold=0.5, separability=0.1,
+            platt_a=0.0, platt_b=0.0,
+            raw_good_scores=[], raw_bad_scores=[],
+        )},
+        exemplar_embeddings=[],
+        threshold_report=[],
+    )
+    result = recalibrate(execution, calibration=cal)
+    assert result.dimension_calibrations["blur"].method in ("gmm", "percentile")
