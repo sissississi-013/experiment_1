@@ -10,6 +10,7 @@ from validation_pipeline.modules.calibrator import calibrate
 from validation_pipeline.modules.planner import generate_plan
 from validation_pipeline.modules.compiler import compile_plan
 from validation_pipeline.modules.executor import execute_program
+from validation_pipeline.modules.recalibrator import recalibrate
 from validation_pipeline.modules.supervisor import supervise
 from validation_pipeline.modules.reporter import generate_report
 from validation_pipeline.tools.registry import ToolRegistry
@@ -153,21 +154,35 @@ class ValidationPipeline:
             raise
         self.event_bus.publish(ModuleCompleted(module="executor", duration_seconds=time.time() - t))
 
-        # Module 6: Supervisor
+        # Module 6: Recalibrator
+        self.event_bus.publish(ModuleStarted(module="recalibrator"))
+        t = time.time()
+        try:
+            strictness_hints = {s.dimension: s.strictness for s in plan.steps}
+            recalibration = recalibrate(
+                result, strictness_hints=strictness_hints,
+                calibration=cal_result, event_bus=self.event_bus,
+            )
+        except PipelineError as e:
+            self.event_bus.publish(PipelineErrorEvent(module=e.module, error_type=type(e).__name__, message=str(e), context=e.context))
+            raise
+        self.event_bus.publish(ModuleCompleted(module="recalibrator", duration_seconds=time.time() - t))
+
+        # Module 7: Supervisor
         self.event_bus.publish(ModuleStarted(module="supervisor"))
         t = time.time()
         try:
-            supervision = supervise(result, cal_result, plan)
+            supervision = supervise(result, recalibration, cal_result, plan)
         except PipelineError as e:
             self.event_bus.publish(PipelineErrorEvent(module=e.module, error_type=type(e).__name__, message=str(e), context=e.context))
             raise
         self.event_bus.publish(ModuleCompleted(module="supervisor", duration_seconds=time.time() - t))
 
-        # Module 7: Reporter
+        # Module 8: Reporter
         self.event_bus.publish(ModuleStarted(module="reporter"))
         t = time.time()
         try:
-            report = generate_report(result, supervision, spec, plan)
+            report = generate_report(result, recalibration, supervision, spec, plan)
         except PipelineError as e:
             self.event_bus.publish(PipelineErrorEvent(module=e.module, error_type=type(e).__name__, message=str(e), context=e.context))
             raise
