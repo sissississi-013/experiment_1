@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from validation_pipeline.schemas.execution import ExecutionResult
+from validation_pipeline.schemas.recalibration import RecalibrationResult
 from validation_pipeline.schemas.supervision import SupervisionReport
 from validation_pipeline.schemas.spec import FormalSpec
 from validation_pipeline.schemas.plan import ValidationPlan
@@ -11,19 +12,26 @@ from validation_pipeline.schemas.report import (
 
 def generate_report(
     result: ExecutionResult,
+    recalibration: RecalibrationResult,
     supervision: SupervisionReport,
     spec: FormalSpec,
     plan: ValidationPlan,
 ) -> FinalReport:
     total = result.total_images or 1
-    usable = result.summary.usable_count
-    recoverable = result.summary.recoverable_count
-    unusable = result.summary.unusable_count
-    error_count = result.summary.error_count
+
+    usable = sum(1 for v in recalibration.image_verdicts.values() if v.verdict == "usable")
+    recoverable = sum(1 for v in recalibration.image_verdicts.values() if v.verdict == "recoverable")
+    unusable = sum(1 for v in recalibration.image_verdicts.values() if v.verdict == "unusable")
+    error_count = sum(1 for v in recalibration.image_verdicts.values() if v.verdict == "error")
+
+    flag_breakdown: dict[str, int] = {}
+    for vr in recalibration.image_verdicts.values():
+        for dim in vr.failed_dimensions:
+            flag_breakdown[dim] = flag_breakdown.get(dim, 0) + 1
 
     dim_scores = {}
-    for dim, rate in result.summary.flag_rates.items():
-        dim_scores[dim] = 1.0 - rate
+    for dim in flag_breakdown:
+        dim_scores[dim] = 1.0 - (flag_breakdown[dim] / total)
 
     overall = usable / total if total > 0 else 0.0
 
@@ -35,13 +43,16 @@ def generate_report(
     per_image = []
     for img in result.results:
         scores = {tr.dimension: tr.score for tr in img.tool_results}
-        flags = [tr.dimension for tr in img.tool_results if not tr.passed]
+        vr = recalibration.image_verdicts.get(img.image_id)
+        flags = vr.failed_dimensions if vr else []
+        verdict = vr.verdict if vr else img.verdict
         per_image.append(ImageReport(
             image_id=img.image_id,
             image_path=img.image_path,
-            verdict=img.verdict,
+            verdict=verdict,
             scores=scores,
             flags=flags,
+            explanation=vr.explanation if vr else None,
         ))
 
     return FinalReport(
@@ -54,7 +65,7 @@ def generate_report(
             unusable=unusable,
             error_count=error_count,
             usable_percentage=usable / total,
-            flag_breakdown={d: int(r * total) for d, r in result.summary.flag_rates.items()},
+            flag_breakdown=flag_breakdown,
         ),
         curation_score=CurationScore(
             overall_score=overall,
@@ -67,6 +78,7 @@ def generate_report(
             spec=spec.model_dump(),
             plan=plan.model_dump(),
             calibration={},
+            recalibration=recalibration.model_dump(),
             supervision_report=supervision.model_dump(),
             timestamp=datetime.now().isoformat(),
             llm_model_used="gpt-4o",
